@@ -1,0 +1,15 @@
+{
+  "run_id": "smoke_t4_fix",
+  "timestamp": "2026-05-02T14:55:00.577840",
+  "git_hash": "8a509ac",
+  "runs": [
+    {
+      "key": "cadex__T4_IntervalTiming",
+      "model_name": "cadex",
+      "task_name": "T4_IntervalTiming",
+      "learning_index": 0.0027006666666666733,
+      "n_trials": 15,
+      "total_wall_time_min": 0.9532199223836263
+    }
+  ]
+}

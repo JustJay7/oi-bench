@@ -22,6 +22,12 @@ Lower Weber fraction = more precise timing = better score.
 Score per trial:
   'accuracy'     : 1 - |reproduced - T_target| / T_target  (clamped to [0,1])
   'weber_error'  : |reproduced - T_target| / T_target
+  'reproduced_ms': measured burst latency (ms)
+  'target_ms'    : target interval (ms)
+
+requires_spike_times = True: runner records per-timestep population spike
+counts and passes them in metadata['spike_counts_timeseries'] so this task
+can detect when the first post-cue burst occurs.
 
 References:
   Gibbon (1977) Psychological Review 84:279-325
@@ -50,16 +56,16 @@ class IntervalTimingTask(BenchmarkTask):
         cue_fraction: float              = 0.3,
         dt: float                        = 0.1,
     ):
-        self._intervals           = target_intervals_ms
-        self._n_per_interval      = n_trials_per_interval
-        self._cue_dur             = cue_duration_ms
-        self._cue_current         = cue_current
-        self._cue_fraction        = cue_fraction
-        self._dt                  = dt
-        self._max_interval        = max(target_intervals_ms)
-        self._trial_dur           = cue_duration_ms + self._max_interval + 200.0
-        self._n_input             = None
-        self._cue_neurons         = None
+        self._intervals      = target_intervals_ms
+        self._n_per_interval = n_trials_per_interval
+        self._cue_dur        = cue_duration_ms
+        self._cue_current    = cue_current
+        self._cue_fraction   = cue_fraction
+        self._dt             = dt
+        self._max_interval   = max(target_intervals_ms)
+        self._trial_dur      = cue_duration_ms + self._max_interval + 200.0
+        self._n_input        = None
+        self._cue_neurons    = None
 
     @property
     def name(self) -> str:
@@ -76,6 +82,14 @@ class IntervalTimingTask(BenchmarkTask):
     @property
     def learning_axis(self) -> str:
         return "temporal"
+
+    @property
+    def requires_spike_times(self) -> bool:
+        """
+        T4 needs per-timestep spike counts to detect when the output
+        burst occurs after the cue — this is the reproduced interval.
+        """
+        return True
 
     def setup(self, model: OIModel) -> None:
         self._n_input  = model.n_input
@@ -106,21 +120,38 @@ class IntervalTimingTask(BenchmarkTask):
             ))
         return stimuli
 
-    def compute_score(self, response, trial_id, state_trace) -> dict:
+    def compute_score(
+        self,
+        response,
+        trial_id: int,
+        state_trace: list,
+        metadata: dict | None = None,
+    ) -> dict:
         target = self._get_target(trial_id)
-        if not state_trace:
-            return {'accuracy': 0.0, 'weber_error': 1.0, 'target_ms': target}
 
-        # Find first output burst after cue offset
-        cue_end_step = int(self._cue_dur / self._dt)
-        reproduced_ms = target   # default: assume no burst = max error
+        # Get per-timestep spike counts from runner
+        spike_ts = metadata.get('spike_counts_timeseries') \
+                   if metadata is not None else None
 
-        for i in range(cue_end_step, len(state_trace)):
-            if float(np.any(np.array(state_trace[i].spikes) > 0)):
+        if spike_ts is None or len(spike_ts) == 0:
+            # No timing information available — score as max error
+            return {
+                'accuracy':      0.0,
+                'weber_error':   1.0,
+                'reproduced_ms': float(target),
+                'target_ms':     float(target),
+            }
+
+        # Find first output population burst after cue offset
+        cue_end_step  = int(self._cue_dur / self._dt)
+        reproduced_ms = target  # default: assume burst at target (max calibration error)
+
+        for i in range(cue_end_step, len(spike_ts)):
+            if spike_ts[i] > 0:
                 reproduced_ms = i * self._dt - self._cue_dur
                 break
 
-        weber_error = abs(reproduced_ms - target) / target
+        weber_error = abs(reproduced_ms - target) / max(target, 1.0)
         accuracy    = float(max(0.0, 1.0 - weber_error))
 
         return {

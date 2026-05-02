@@ -10,6 +10,8 @@ Key design decisions:
   - US injection baked into I_us array — no Python branching in scan
   - First trial compiles (~2s), subsequent trials use cached XLA kernel (~0.09s/100 steps)
   - Python loop fallback if compilation fails
+  - When task.requires_spike_times=True, per-timestep population spike counts
+    are recorded and passed to compute_score() via metadata dict
 
 Spec Section 7.
 """
@@ -73,26 +75,22 @@ class BenchmarkRunner:
         Closes over the precomputed stimulus arrays.
         idx is converted via jnp.asarray() to satisfy JAX abstractification.
         """
-        has_output = hasattr(model, 'output_pop')
+        has_output  = hasattr(model, 'output_pop')
         has_synapse = hasattr(model, 'synapse')
-
-        has_rec = hasattr(model, 'rec_synapse')
+        has_rec     = hasattr(model, 'rec_synapse')
 
         def step_fn(idx):
             i       = jnp.asarray(idx, dtype=jnp.int32)
             current = I_in_jax[i]
             us      = I_us_jax[i]
 
-            # Step input population
             model.input_pop.update(x=current)
             S_pre  = model.input_pop.spike.value.astype(bm.float32)
             S_post = model.output_pop.spike.value.astype(bm.float32)
 
-            # Synapse
             I_syn = model.synapse.update(S_pre, S_post,
                                          model.output_pop.V.value)
 
-            # Recurrent synapse + global inhibition (if present)
             if has_rec:
                 I_rec  = model.rec_synapse.update(S_post, S_post,
                                                   model.output_pop.V.value)
@@ -102,13 +100,11 @@ class BenchmarkRunner:
                 I_rec  = bm.zeros(model.n_output)
                 I_inh  = bm.zeros(model.n_output)
 
-            # Step output population: background + synaptic + recurrent + inhibition + US
             model.output_pop.update(x=I_bg + I_syn + I_rec + I_inh + us)
 
             return model.output_pop.spike.value.astype(bm.float32)
 
         def step_fn_no_output(idx):
-            """Fallback for models without output_pop (e.g. LSM)."""
             i       = jnp.asarray(idx, dtype=jnp.int32)
             current = I_in_jax[i]
             stim    = Stimulus(
@@ -135,7 +131,8 @@ class BenchmarkRunner:
         trial_results        = []
         wall_times           = []
         weight_stats_history = []
-        compiled             = False   # track if JIT compiled successfully
+        compiled             = False
+        need_spike_ts        = task.requires_spike_times
 
         if self.verbose:
             print(f"\n{'='*60}")
@@ -144,7 +141,6 @@ class BenchmarkRunner:
             print(f"  dt={model.dt}ms")
             print(f"{'='*60}\n")
 
-        # Background current for output population
         I_bg = bm.full(model.n_output, 150.0, dtype=bm.float32) \
                if hasattr(model, 'output_pop') else None
 
@@ -152,7 +148,6 @@ class BenchmarkRunner:
             trial_key = jax.random.fold_in(self.base_key, trial_id)
             model.pre_trial(trial_id)
 
-            # Generate and precompute stimulus arrays
             stimuli = task.generate_trial(trial_id, trial_key)
             n_steps = len(stimuli)
 
@@ -171,6 +166,7 @@ class BenchmarkRunner:
             indices  = bm.arange(n_steps)
 
             output_spikes_accum = np.zeros(model.n_output, dtype=np.float32)
+            spike_timeseries    = None   # only populated when need_spike_ts=True
             t0 = time.time()
 
             # --- Attempt compiled scan ---
@@ -179,10 +175,15 @@ class BenchmarkRunner:
                     model, I_in_jax, I_us_jax, I_bg
                 )
                 try:
-                    all_spikes = bm.for_loop(step_fn, indices, jit=True)
-                    output_spikes_accum = np.array(jnp.sum(all_spikes, axis=0))
-                    # Update homeostasis spike counter after scan completes
+                    all_spikes    = bm.for_loop(step_fn, indices, jit=True)
+                    all_spikes_np = np.array(all_spikes)          # (n_steps, n_output)
+                    output_spikes_accum = all_spikes_np.sum(axis=0)
                     model._trial_spike_counts += output_spikes_accum
+
+                    # Lightweight per-timestep population spike count for T4
+                    if need_spike_ts:
+                        spike_timeseries = all_spikes_np.sum(axis=1).astype(np.float32)
+
                     compiled = True
                 except Exception as e:
                     if self.verbose and trial_id == 0:
@@ -191,6 +192,7 @@ class BenchmarkRunner:
 
             # --- Python loop fallback ---
             if not compiled:
+                py_spike_ts = [] if need_spike_ts else None
                 for step_idx in range(n_steps):
                     stim = Stimulus(
                         current     = I_in[step_idx],
@@ -202,19 +204,29 @@ class BenchmarkRunner:
                         model.output_pop.update(
                             x=bm.array(I_us[step_idx], dtype=bm.float32)
                         )
-                    output_spikes_accum += np.array(state.spikes)
+                    spikes_this_step = np.array(state.spikes)
+                    output_spikes_accum += spikes_this_step
+                    if need_spike_ts:
+                        py_spike_ts.append(float(spikes_this_step.sum()))
+
+                if need_spike_ts:
+                    spike_timeseries = np.array(py_spike_ts, dtype=np.float32)
 
             wall_time = time.time() - t0
 
-            # Response: mean firing rate (Hz) over trial
             trial_dur_s = task.trial_duration_ms / 1000.0
             response    = jnp.array(output_spikes_accum / trial_dur_s)
 
-            # Score
+            # Build metadata dict passed to compute_score
+            score_metadata = {
+                'spike_counts_timeseries': spike_timeseries,
+            }
+
             scores = task.compute_score(
                 response    = response,
                 trial_id    = trial_id,
                 state_trace = [],
+                metadata    = score_metadata,
             )
 
             modulator = 1.0
