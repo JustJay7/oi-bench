@@ -228,3 +228,13 @@ class SequencePredictionTask(BenchmarkTask):
             'd_correct':        d_correct,
             'e_correct':        e_correct,
         }
+
+    def learning_index(self, trial_results: list) -> float:
+        """Override: compute LI on test trials only."""
+        test_results = [
+            r for r in trial_results
+            if r.trial_id >= self._n_learning
+        ]
+        if not test_results:
+            return 0.0
+        return super().learning_index(test_results)

@@ -106,6 +106,26 @@ class CAdExNetwork(OIModel):
             plasticity = plasticity,
         )
 
+        # Recurrent synapse: output → output (for attractor dynamics, T2)
+        # Sparse 20% connectivity — prevents runaway activity
+        # STDP strengthens co-active connections during pattern learning
+        rec_conn = np.random.rand(n_output, n_output) < 0.2
+        np.fill_diagonal(rec_conn, False)   # no self-connections
+
+        self.rec_synapse = TripletSTDPSynapse(
+            pre        = self.output_pop,
+            post       = self.output_pop,
+            conn       = rec_conn,
+            w_init     = 0.1,          # start weak — STDP strengthens them
+            g_max      = 1.5,          # weaker than feedforward
+            tau_syn    = 15.0,
+            plasticity = plasticity,
+        )
+
+        # Global inhibition: scales with mean population activity
+        # Prevents runaway excitation in recurrent network
+        self._inhibition_strength = 2.0   # pA per mean spike
+
         # Homeostatic plasticity — calibrated per task via configure_homeostasis()
         self.homeo = HomeostaticPlasticity(
             neurons      = self.output_pop,
@@ -119,12 +139,14 @@ class CAdExNetwork(OIModel):
 
         self._trial_spike_counts = np.zeros(n_output, dtype=np.float32)
 
-    def configure_homeostasis(self, r_target: float, trial_dur_ms: float) -> None:
+    def configure_homeostasis(
+        self,
+        r_target: float,
+        trial_dur_ms: float,
+        enabled: bool = True,
+    ) -> None:
         """
         Update homeostasis parameters for the current task.
-
-        Must be called before runner.run() for each task to ensure
-        homeostasis operates at the correct operating point.
 
         Parameters
         ----------
@@ -132,11 +154,15 @@ class CAdExNetwork(OIModel):
             Natural output firing rate for this task (Hz).
         trial_dur_ms : float
             Actual trial duration for this task (ms).
+        enabled : bool
+            Set False for sparse-stimulus tasks (e.g. T4) where homeostasis
+            causes instability due to long silent inter-stimulus windows.
         """
         self.homeo.r_target     = r_target
         self.homeo.trial_dur_ms = trial_dur_ms
         self.homeo.r_mean[:]    = r_target
         self.homeo.alpha        = 1.0 - np.exp(-1.0 / 5.0)
+        self.homeo.enabled      = enabled
 
     # ------------------------------------------------------------------
     # OIModel interface
@@ -172,6 +198,12 @@ class CAdExNetwork(OIModel):
         self.synapse.o2.value = bm.zeros(self._n_output)
         self.synapse.g.value  = bm.zeros((self._n_input, self._n_output))
 
+        self.rec_synapse.r1.value = bm.zeros(self._n_output)
+        self.rec_synapse.r2.value = bm.zeros(self._n_output)
+        self.rec_synapse.o1.value = bm.zeros(self._n_output)
+        self.rec_synapse.o2.value = bm.zeros(self._n_output)
+        self.rec_synapse.g.value  = bm.zeros((self._n_output, self._n_output))
+
         self._trial_spike_counts[:] = 0.0
 
     def step(self, stimulus: Stimulus) -> ModelState:
@@ -183,7 +215,14 @@ class CAdExNetwork(OIModel):
         S_post = self.output_pop.spike.value.astype(bm.float32)
         I_syn  = self.synapse.update(S_pre, S_post, self.output_pop.V.value)
 
-        I_total = bm.full(self._n_output, self._I_bg) + I_syn
+        # Recurrent input (output → output) for attractor dynamics
+        I_rec  = self.rec_synapse.update(S_post, S_post, self.output_pop.V.value)
+
+        # Global inhibition — prevents runaway recurrent excitation
+        mean_activity = jnp.mean(S_post)
+        I_inh = -self._inhibition_strength * mean_activity * bm.ones(self._n_output)
+
+        I_total = bm.full(self._n_output, self._I_bg) + I_syn + I_rec + I_inh
         self.output_pop.update(x=I_total)
 
         self._trial_spike_counts += np.array(
@@ -211,6 +250,12 @@ class CAdExNetwork(OIModel):
         self.synapse.o1.value = bm.zeros(self._n_output)
         self.synapse.o2.value = bm.zeros(self._n_output)
         self.synapse.g.value  = bm.zeros((self._n_input, self._n_output))
+
+        self.rec_synapse.r1.value = bm.zeros(self._n_output)
+        self.rec_synapse.r2.value = bm.zeros(self._n_output)
+        self.rec_synapse.o1.value = bm.zeros(self._n_output)
+        self.rec_synapse.o2.value = bm.zeros(self._n_output)
+        self.rec_synapse.g.value  = bm.zeros((self._n_output, self._n_output))
 
     def post_trial(
         self,

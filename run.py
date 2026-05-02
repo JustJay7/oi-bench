@@ -44,12 +44,12 @@ from oi_bench.harness.logger import BenchmarkLogger
 # trial_dur_ms = actual trial duration for each task
 # ------------------------------------------------------------------
 HOMEO_CONFIG = {
-    'T1': {'r_target': 110.0, 'trial_dur_ms': 400.0},
-    'T2': {'r_target': 200.0, 'trial_dur_ms': 200.0},
-    'T3': {'r_target':  25.0, 'trial_dur_ms': 250.0},
-    'T4': {'r_target':  25.0, 'trial_dur_ms': 1200.0},
-    'T5': {'r_target':  50.0, 'trial_dur_ms': 800.0},
-    'T6': {'r_target':  50.0, 'trial_dur_ms': 500.0},
+    'T1': {'r_target': 110.0, 'trial_dur_ms':  400.0, 'enabled': True},
+    'T2': {'r_target': 200.0, 'trial_dur_ms':  200.0, 'enabled': True},
+    'T3': {'r_target':  25.0, 'trial_dur_ms':  250.0, 'enabled': True},
+    'T4': {'r_target':   5.0, 'trial_dur_ms': 1220.0, 'enabled': False},
+    'T5': {'r_target':  50.0, 'trial_dur_ms':  800.0, 'enabled': True},
+    'T6': {'r_target':  50.0, 'trial_dur_ms':  500.0, 'enabled': True},
 }
 
 
@@ -166,6 +166,7 @@ def main():
                 model.configure_homeostasis(
                     r_target     = cfg['r_target'],
                     trial_dur_ms = cfg['trial_dur_ms'],
+                    enabled      = cfg.get('enabled', True),
                 )
 
             # Reset model between tasks

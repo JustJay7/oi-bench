@@ -76,6 +76,8 @@ class BenchmarkRunner:
         has_output = hasattr(model, 'output_pop')
         has_synapse = hasattr(model, 'synapse')
 
+        has_rec = hasattr(model, 'rec_synapse')
+
         def step_fn(idx):
             i       = jnp.asarray(idx, dtype=jnp.int32)
             current = I_in_jax[i]
@@ -90,8 +92,18 @@ class BenchmarkRunner:
             I_syn = model.synapse.update(S_pre, S_post,
                                          model.output_pop.V.value)
 
-            # Step output population: background + synaptic + US
-            model.output_pop.update(x=I_bg + I_syn + us)
+            # Recurrent synapse + global inhibition (if present)
+            if has_rec:
+                I_rec  = model.rec_synapse.update(S_post, S_post,
+                                                  model.output_pop.V.value)
+                mean_act = jnp.mean(S_post)
+                I_inh = -model._inhibition_strength * mean_act * bm.ones(model.n_output)
+            else:
+                I_rec  = bm.zeros(model.n_output)
+                I_inh  = bm.zeros(model.n_output)
+
+            # Step output population: background + synaptic + recurrent + inhibition + US
+            model.output_pop.update(x=I_bg + I_syn + I_rec + I_inh + us)
 
             return model.output_pop.spike.value.astype(bm.float32)
 
