@@ -1,0 +1,31 @@
+{
+  "run_id": "smoke_v2",
+  "timestamp": "2026-05-02T13:46:03.462245",
+  "git_hash": "7bb0e77",
+  "runs": [
+    {
+      "key": "cadex__T1_ClassicalConditioning",
+      "model_name": "cadex",
+      "task_name": "T1_ClassicalConditioning",
+      "learning_index": 0.73,
+      "n_trials": 10,
+      "total_wall_time_min": 0.13690467675526938
+    },
+    {
+      "key": "cadex__T2_PatternCompletion",
+      "model_name": "cadex",
+      "task_name": "T2_PatternCompletion",
+      "learning_index": 0.03142857142857146,
+      "n_trials": 39,
+      "total_wall_time_min": 0.29964120388031007
+    },
+    {
+      "key": "cadex__T3_SequencePrediction",
+      "model_name": "cadex",
+      "task_name": "T3_SequencePrediction",
+      "learning_index": 0.2533333333333333,
+      "n_trials": 15,
+      "total_wall_time_min": 0.13834914763768513
+    }
+  ]
+}

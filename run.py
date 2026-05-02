@@ -2,22 +2,18 @@
 OI-Bench Full Benchmark Run
 
 Executes the complete 3 models × 6 tasks evaluation matrix.
-Results are logged to results/{run_id}/ as HDF5 + JSON + CSV.
+Results logged to results/{run_id}/ as HDF5 + JSON + CSV.
 
 Usage:
     python run.py                          # full run, all models and tasks
     python run.py --models cadex           # single model
     python run.py --tasks T1 T2            # subset of tasks
-    python run.py --smoke                  # 5-trial smoke test (fast)
+    python run.py --smoke                  # minimal trial counts (fast)
     python run.py --model_seed 42          # reproducibility seed
 
-Runtime estimate (M1, dt=0.1ms):
-    Full run: ~60s per trial × ~200 trials × 18 runs ≈ 60 hours
-    Smoke test: 5 trials per task ≈ 2 hours
-
-For the full run, consider running overnight:
-    nohup python run.py > run.log 2>&1 &
-    tail -f run.log
+Runtime estimate (M1, JIT compiled):
+    Full run: ~0.9s per trial × ~200 trials × 18 runs ≈ 54 minutes
+    Smoke test: ~30 seconds
 """
 
 import os
@@ -40,6 +36,21 @@ from oi_bench.tasks.working_memory.n_back import NBackTask
 
 from oi_bench.harness.runner import BenchmarkRunner
 from oi_bench.harness.logger import BenchmarkLogger
+
+
+# ------------------------------------------------------------------
+# Per-task homeostasis calibration
+# r_target = natural output firing rate for each task
+# trial_dur_ms = actual trial duration for each task
+# ------------------------------------------------------------------
+HOMEO_CONFIG = {
+    'T1': {'r_target': 110.0, 'trial_dur_ms': 400.0},
+    'T2': {'r_target': 200.0, 'trial_dur_ms': 200.0},
+    'T3': {'r_target':  25.0, 'trial_dur_ms': 250.0},
+    'T4': {'r_target':  25.0, 'trial_dur_ms': 1200.0},
+    'T5': {'r_target':  50.0, 'trial_dur_ms': 800.0},
+    'T6': {'r_target':  50.0, 'trial_dur_ms': 500.0},
+}
 
 
 # ------------------------------------------------------------------
@@ -70,15 +81,6 @@ def build_models(seed: int = 0) -> dict:
 # Task registry
 # ------------------------------------------------------------------
 def build_tasks(smoke: bool = False) -> dict:
-    """
-    Build all 6 benchmark tasks.
-
-    Parameters
-    ----------
-    smoke : bool
-        If True, use minimal trial counts for fast validation.
-        Default False = full benchmark per spec.
-    """
     if smoke:
         return {
             'T1': ClassicalConditioningTask(
@@ -109,24 +111,16 @@ def build_tasks(smoke: bool = False) -> dict:
 def main():
     parser = argparse.ArgumentParser(description="OI-Bench full benchmark run")
     parser.add_argument('--models', nargs='+', default=None,
-                        choices=['cadex', 'lif', 'lsm'],
-                        help="Models to evaluate (default: all)")
+                        choices=['cadex', 'lif', 'lsm'])
     parser.add_argument('--tasks', nargs='+', default=None,
-                        choices=['T1', 'T2', 'T3', 'T4', 'T5', 'T6'],
-                        help="Tasks to run (default: all)")
-    parser.add_argument('--smoke', action='store_true',
-                        help="Smoke test: 5-10 trials per task")
-    parser.add_argument('--model_seed', type=int, default=0,
-                        help="Random seed for model weight init")
-    parser.add_argument('--run_id', type=str, default=None,
-                        help="Run identifier (default: timestamp)")
-    parser.add_argument('--results_dir', type=str, default='results',
-                        help="Results directory (default: results/)")
-    parser.add_argument('--record_traces', action='store_true',
-                        help="Record full per-step state traces (memory intensive)")
+                        choices=['T1', 'T2', 'T3', 'T4', 'T5', 'T6'])
+    parser.add_argument('--smoke', action='store_true')
+    parser.add_argument('--model_seed', type=int, default=0)
+    parser.add_argument('--run_id', type=str, default=None)
+    parser.add_argument('--results_dir', type=str, default='results')
+    parser.add_argument('--record_traces', action='store_true')
     args = parser.parse_args()
 
-    # Build models and tasks
     all_models = build_models(seed=args.model_seed)
     all_tasks  = build_tasks(smoke=args.smoke)
 
@@ -137,7 +131,6 @@ def main():
 
     n_runs = len(models_to_run) * len(tasks_to_run)
 
-    # Setup runner and logger
     runner = BenchmarkRunner(
         record_traces = args.record_traces,
         verbose       = True,
@@ -167,6 +160,14 @@ def main():
             print(f"\n[{run_count}/{n_runs}] {model_name} × {task_name}")
             print(f"  Started: {datetime.now().strftime('%H:%M:%S')}")
 
+            # Configure homeostasis for this task
+            if hasattr(model, 'configure_homeostasis') and task_name in HOMEO_CONFIG:
+                cfg = HOMEO_CONFIG[task_name]
+                model.configure_homeostasis(
+                    r_target     = cfg['r_target'],
+                    trial_dur_ms = cfg['trial_dur_ms'],
+                )
+
             # Reset model between tasks
             model.reset()
 
@@ -183,15 +184,13 @@ def main():
                 traceback.print_exc()
                 continue
 
-            elapsed = (time.time() - t_start) / 60.0
+            elapsed   = (time.time() - t_start) / 60.0
             remaining = elapsed / run_count * (n_runs - run_count)
             print(f"  Completed {run_count}/{n_runs} | "
                   f"Elapsed: {elapsed:.1f}min | "
                   f"ETA: {remaining:.1f}min")
 
-    # Final summary
     logger.print_summary()
-
     total_min = (time.time() - t_start) / 60.0
     print(f"  Total runtime: {total_min:.1f} minutes")
     print(f"  Results saved to: {logger.run_dir}")
