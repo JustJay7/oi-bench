@@ -5,6 +5,29 @@ Benchmark axis: Temporal Learning
 Biological analog: Hippocampal sequence replay, cerebellar timing
 (Dragoi & Tonegawa 2011, Nature; Leutgeb et al. 2005, Science)
 
+PROTOCOL
+--------
+A repeating 5-element spike sequence A→B→C→D→E is presented during learning.
+Each element is a distinct 20ms burst to a different subset of input neurons,
+separated by 30ms ISI. Total sequence duration: 5 × (20+30) = 250ms.
+
+Trial structure:
+  Trials 0 to n_learning_trials-1   : Learning — full sequence A→B→C→D→E
+  Trials n_learning_trials to end    : Test — truncated A→B→C only,
+                                       score whether output fires in D/E windows
+
+SCORING
+-------
+requires_spike_times=True so runner provides per-timestep population spike
+counts in metadata['spike_counts_timeseries']. On test trials we check for
+output activity in the D and E element windows after the truncation point.
+
+Score per trial:
+  accuracy          : mean(d_correct, e_correct)
+  timing_precision  : same as accuracy
+  d_correct         : 1.0 if output fires during D window
+  e_correct         : 1.0 if output fires during E window
+
 References:
   Dragoi & Tonegawa (2011) Nature 469:397-401
   Drew & Abbott (2006) PNAS 103:8876-8881
@@ -50,7 +73,6 @@ class SequencePredictionTask(BenchmarkTask):
         self._dt               = dt
         self._seed             = seed
         self._full_dur         = n_elements * (element_duration_ms + isi_ms)
-        self._trunc_dur        = (truncate_at + 1) * (element_duration_ms + isi_ms)
         self._n_input          = None
         self._element_neurons  = None
 
@@ -69,6 +91,14 @@ class SequencePredictionTask(BenchmarkTask):
     @property
     def learning_axis(self) -> str:
         return "temporal"
+
+    @property
+    def requires_spike_times(self) -> bool:
+        """
+        Test-trial scoring checks for output activity in specific
+        temporal windows — requires per-timestep spike counts.
+        """
+        return True
 
     def setup(self, model: OIModel) -> None:
         self._n_input  = model.n_input
@@ -122,34 +152,37 @@ class SequencePredictionTask(BenchmarkTask):
         metadata: dict | None = None,
     ) -> dict:
         is_test = trial_id >= self._n_learning
+
+        # Learning trials: not scored — return perfect to avoid polluting LI
         if not is_test:
             return {'accuracy': 1.0, 'timing_precision': 1.0,
                     'd_correct': 1.0, 'e_correct': 1.0}
-        if not state_trace:
-            return {'accuracy': 0.0, 'timing_precision': 0.0,
-                    'd_correct': 0.0, 'e_correct': 0.0}
-        d_idx = self._truncate_at + 1
-        e_idx = self._truncate_at + 2
 
-        def element_window_active(elem_idx: int) -> float:
+        spike_ts = metadata.get('spike_counts_timeseries') \
+                   if metadata is not None else None
+
+        if spike_ts is None or len(spike_ts) == 0:
+            # Fallback: use total mean response rate as weak proxy
+            mean_rate = float(np.mean(np.array(response)))
+            score     = float(mean_rate > 0) * 0.5
+            return {'accuracy': score, 'timing_precision': 0.0,
+                    'd_correct': score, 'e_correct': score}
+
+        def window_has_activity(elem_idx: int) -> float:
             if elem_idx >= self._n_elements:
                 return 0.0
             onset   = elem_idx * (self._element_dur + self._isi)
             offset  = onset + self._element_dur
             s_start = int(onset  / self._dt)
-            s_end   = int(offset / self._dt)
-            s_end   = min(s_end, len(state_trace))
+            s_end   = min(int(offset / self._dt), len(spike_ts))
             if s_end <= s_start:
                 return 0.0
-            spikes_in_window = sum(
-                float(np.any(np.array(state_trace[i].spikes) > 0))
-                for i in range(s_start, s_end)
-            )
-            return float(spikes_in_window > 0)
+            return float(np.any(spike_ts[s_start:s_end] > 0))
 
-        d_correct = element_window_active(d_idx)
-        e_correct = element_window_active(e_idx)
+        d_correct = window_has_activity(self._truncate_at + 1)
+        e_correct = window_has_activity(self._truncate_at + 2)
         accuracy  = float((d_correct + e_correct) / 2.0)
+
         return {
             'accuracy':         accuracy,
             'timing_precision': accuracy,
@@ -158,6 +191,7 @@ class SequencePredictionTask(BenchmarkTask):
         }
 
     def learning_index(self, trial_results: list) -> float:
+        """Override: LI computed on test trials only."""
         test_results = [r for r in trial_results if r.trial_id >= self._n_learning]
         if not test_results:
             return 0.0

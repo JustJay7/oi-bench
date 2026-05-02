@@ -1,31 +1,25 @@
 """
 LIF Baseline Network — Standard Leaky Integrate-and-Fire
 
-Implements a feedforward LIF network as the ablation baseline for CAdEx.
+Implements a feedforward+recurrent LIF network as the ablation baseline
+for CAdEx. Architecture is IDENTICAL to CAdExNetwork except:
+  - LIFNeuron replaces CAdExFractalNeuron (no adaptation, no Ca, no fractal memory)
+  - Both networks have: input pop, output pop, feedforward synapse,
+    recurrent synapse, global inhibition, homeostatic plasticity
 
-Purpose in OI-Bench:
-  Isolates the contribution of CAdEx-specific features by comparing against
-  the simplest biologically-plausible neuron model. Differences between
-  LIF and CAdEx results quantify the contribution of:
-    - Calcium dynamics
-    - Subthreshold adaptation
-    - Fractional membrane capacitance
-
-Uses the same TripletSTDPSynapse and HomeostaticPlasticity as CAdEx,
-so differences in benchmark performance are attributable to the neuron
-model alone, not the learning rules.
-
-Architecture:
-  Input population  : LIFNeuron (n_input neurons)
-  Output population : LIFNeuron (n_output neurons)
-  Synapse           : TripletSTDPSynapse (same as CAdEx)
-  Homeostasis       : HomeostaticPlasticity (same as CAdEx)
+This architectural parity is required for a valid ablation — differences
+in benchmark performance between LIF and CAdEx are attributable solely
+to the neuron model, not to architectural differences.
 
 LIF membrane equation:
   C_m dV/dt = -g_L(V - E_L) + I_ext
   Spike when V >= V_peak, reset to V_r
 
 No adaptation variable w, no calcium dynamics, no fractional memory.
+
+References:
+  Brette & Gerstner (2005) J. Neurophysiol. 94:3637-3642 — AdEx base
+  Spec Section 9 (Ablation Structure)
 """
 
 import os
@@ -46,7 +40,7 @@ class LIFNeuron(bp.dyn.NeuDyn):
     """
     Standard Leaky Integrate-and-Fire neuron.
 
-    Parameters (matched to CAdEx resting state for fair comparison):
+    Parameters matched to CAdEx resting state for fair comparison:
       C_m    = 200 pF
       g_L    = 10 nS
       E_L    = -70 mV
@@ -76,19 +70,16 @@ class LIFNeuron(bp.dyn.NeuDyn):
         self.V     = bm.Variable(bm.full(size, E_L))
         self.spike = bm.Variable(bm.zeros(size, dtype=bool))
         self.input = bm.Variable(bm.zeros(size))
-
         # Expose V_T as Variable for homeostasis compatibility
         self.V_T   = bm.Variable(bm.full(size, -50.0))
 
     def update(self, x=None):
         I_ext = self.input.value if x is None else x
         V     = self.V.value
-
         dV    = (-self.g_L * (V - self.E_L) + I_ext) / self.C_m
         V_new = V + dV * self.dt
         spike = V_new >= self.V_peak
         V_new = bm.where(spike, self.V_r, V_new)
-
         self.V.value     = V_new
         self.spike.value = spike
         self.input.value = bm.zeros(self.num)
@@ -98,9 +89,13 @@ class LIFNetwork(OIModel):
     """
     LIF baseline network implementing OIModel.
 
-    Identical architecture to CAdExNetwork except:
-      - LIFNeuron replaces CAdExNeuron/CAdExFractalNeuron
-      - No adaptation, no calcium, no fractional memory
+    Architecture mirrors CAdExNetwork exactly:
+      Input population  : LIFNeuron (n_input)
+      Output population : LIFNeuron (n_output)
+      Feedforward synapse: TripletSTDPSynapse (input → output)
+      Recurrent synapse : TripletSTDPSynapse (output → output, 20% sparse)
+      Global inhibition : -inhibition_strength × mean_activity
+      Homeostasis       : HomeostaticPlasticity (output population)
 
     Parameters match CAdExNetwork defaults for fair comparison.
     """
@@ -126,9 +121,9 @@ class LIFNetwork(OIModel):
         self.input_pop  = LIFNeuron(size=n_input,  dt=dt)
         self.output_pop = LIFNeuron(size=n_output, dt=dt)
 
+        # Feedforward synapse: input → output
         conn = (np.ones((n_input, n_output), dtype=bool)
                 if conn_prob >= 1.0 else {'prob': conn_prob})
-
         self.synapse = TripletSTDPSynapse(
             pre        = self.input_pop,
             post       = self.output_pop,
@@ -139,17 +134,47 @@ class LIFNetwork(OIModel):
             plasticity = plasticity,
         )
 
+        # Recurrent synapse: output → output (mirrors CAdExNetwork)
+        rec_conn = np.random.rand(n_output, n_output) < 0.2
+        np.fill_diagonal(rec_conn, False)
+        self.rec_synapse = TripletSTDPSynapse(
+            pre        = self.output_pop,
+            post       = self.output_pop,
+            conn       = rec_conn,
+            w_init     = 0.1,
+            g_max      = 1.5,
+            tau_syn    = 15.0,
+            plasticity = plasticity,
+        )
+
+        # Global inhibition strength (mirrors CAdExNetwork)
+        self._inhibition_strength = 2.0
+
+        # Homeostatic plasticity
         self.homeo = HomeostaticPlasticity(
             neurons      = self.output_pop,
             synapse      = self.synapse,
-            r_target     = 5.0,
-            trial_dur_ms = 100.0,
+            r_target     = 110.0,   # overridden per task via configure_homeostasis()
+            trial_dur_ms = 400.0,
             gamma        = 0.5,
             eta_h        = 0.001,
             enabled      = homeostasis,
         )
 
         self._trial_spike_counts = np.zeros(n_output, dtype=np.float32)
+
+    def configure_homeostasis(
+        self,
+        r_target: float,
+        trial_dur_ms: float,
+        enabled: bool = True,
+    ) -> None:
+        """Mirror of CAdExNetwork.configure_homeostasis() — called by run.py."""
+        self.homeo.r_target     = r_target
+        self.homeo.trial_dur_ms = trial_dur_ms
+        self.homeo.r_mean[:]    = r_target
+        self.homeo.alpha        = 1.0 - np.exp(-1.0 / 5.0)
+        self.homeo.enabled      = enabled
 
     @property
     def n_input(self) -> int:
@@ -164,15 +189,20 @@ class LIFNetwork(OIModel):
         return self._dt
 
     def reset(self) -> None:
-        self.input_pop.V.value     = bm.full(self._n_input,  self.input_pop.E_L)
-        self.input_pop.spike.value = bm.zeros(self._n_input, dtype=bool)
-        self.output_pop.V.value    = bm.full(self._n_output, self.output_pop.E_L)
+        self.input_pop.V.value      = bm.full(self._n_input,  self.input_pop.E_L)
+        self.input_pop.spike.value  = bm.zeros(self._n_input, dtype=bool)
+        self.output_pop.V.value     = bm.full(self._n_output, self.output_pop.E_L)
         self.output_pop.spike.value = bm.zeros(self._n_output, dtype=bool)
-        self.synapse.r1.value = bm.zeros(self._n_input)
-        self.synapse.r2.value = bm.zeros(self._n_input)
-        self.synapse.o1.value = bm.zeros(self._n_output)
-        self.synapse.o2.value = bm.zeros(self._n_output)
-        self.synapse.g.value  = bm.zeros((self._n_input, self._n_output))
+        self.synapse.r1.value       = bm.zeros(self._n_input)
+        self.synapse.r2.value       = bm.zeros(self._n_input)
+        self.synapse.o1.value       = bm.zeros(self._n_output)
+        self.synapse.o2.value       = bm.zeros(self._n_output)
+        self.synapse.g.value        = bm.zeros((self._n_input,  self._n_output))
+        self.rec_synapse.r1.value   = bm.zeros(self._n_output)
+        self.rec_synapse.r2.value   = bm.zeros(self._n_output)
+        self.rec_synapse.o1.value   = bm.zeros(self._n_output)
+        self.rec_synapse.o2.value   = bm.zeros(self._n_output)
+        self.rec_synapse.g.value    = bm.zeros((self._n_output, self._n_output))
         self._trial_spike_counts[:] = 0.0
 
     def step(self, stimulus: Stimulus) -> ModelState:
@@ -182,8 +212,12 @@ class LIFNetwork(OIModel):
         S_pre  = self.input_pop.spike.value.astype(bm.float32)
         S_post = self.output_pop.spike.value.astype(bm.float32)
         I_syn  = self.synapse.update(S_pre, S_post, self.output_pop.V.value)
+        I_rec  = self.rec_synapse.update(S_post, S_post, self.output_pop.V.value)
 
-        self.output_pop.update(x=bm.full(self._n_output, self._I_bg) + I_syn)
+        mean_activity = jnp.mean(S_post)
+        I_inh  = -self._inhibition_strength * mean_activity * bm.ones(self._n_output)
+        I_total = bm.full(self._n_output, self._I_bg) + I_syn + I_rec + I_inh
+        self.output_pop.update(x=I_total)
 
         self._trial_spike_counts += np.array(
             self.output_pop.spike.value.astype(bm.float32)
@@ -202,11 +236,16 @@ class LIFNetwork(OIModel):
 
     def pre_trial(self, trial_id: int) -> None:
         self._trial_spike_counts[:] = 0.0
-        self.synapse.r1.value = bm.zeros(self._n_input)
-        self.synapse.r2.value = bm.zeros(self._n_input)
-        self.synapse.o1.value = bm.zeros(self._n_output)
-        self.synapse.o2.value = bm.zeros(self._n_output)
-        self.synapse.g.value  = bm.zeros((self._n_input, self._n_output))
+        self.synapse.r1.value     = bm.zeros(self._n_input)
+        self.synapse.r2.value     = bm.zeros(self._n_input)
+        self.synapse.o1.value     = bm.zeros(self._n_output)
+        self.synapse.o2.value     = bm.zeros(self._n_output)
+        self.synapse.g.value      = bm.zeros((self._n_input,  self._n_output))
+        self.rec_synapse.r1.value = bm.zeros(self._n_output)
+        self.rec_synapse.r2.value = bm.zeros(self._n_output)
+        self.rec_synapse.o1.value = bm.zeros(self._n_output)
+        self.rec_synapse.o2.value = bm.zeros(self._n_output)
+        self.rec_synapse.g.value  = bm.zeros((self._n_output, self._n_output))
 
     def post_trial(
         self,
