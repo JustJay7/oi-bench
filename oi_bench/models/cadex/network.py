@@ -118,8 +118,8 @@ class CAdExNetwork(OIModel):
         self.homeo = HomeostaticPlasticity(
             neurons      = self.output_pop,
             synapse      = self.synapse,
-            r_target     = 5.0,
-            trial_dur_ms = 100.0,    # updated per task in pre_trial()
+            r_target     = 110.0,   # actual operating rate — homeostasis neutral
+            trial_dur_ms = 400.0,
             gamma        = 0.5,
             eta_h        = 0.001,
             enabled      = homeostasis,

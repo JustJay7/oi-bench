@@ -89,20 +89,20 @@ class ClassicalConditioningTask(BenchmarkTask):
 
     def __init__(
         self,
-        n_trials: int              = 200,
-        trial_duration_ms: float   = 500.0,
-        cs_onset_ms: float         = 100.0,
-        cs_duration_ms: float      = 100.0,
-        us_onset_ms: float         = 200.0,
-        us_duration_ms: float      = 100.0,
-        response_onset_ms: float   = 300.0,
+        n_trials: int               = 200,
+        trial_duration_ms: float    = 400.0,
+        cs_onset_ms: float          = 50.0,
+        cs_duration_ms: float       = 150.0,
+        us_onset_ms: float          = 150.0,
+        us_duration_ms: float       = 50.0,
+        response_onset_ms: float    = 200.0,
         response_duration_ms: float = 200.0,
-        cs_current: float          = 400.0,
-        us_current: float          = 500.0,
-        cs_fraction: float         = 0.3,
-        cr_threshold: float        = 20.0,
-        n_conditioning_trials: int = 150,
-        dt: float                  = 0.1,
+        cs_current: float           = 400.0,
+        us_current: float           = 500.0,
+        cs_fraction: float          = 0.3,
+        cr_threshold: float         = 20.0,
+        n_conditioning_trials: int  = 150,
+        dt: float                   = 0.1,
     ):
         self._n_trials              = n_trials
         self._trial_duration_ms     = trial_duration_ms

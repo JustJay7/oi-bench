@@ -1,0 +1,15 @@
+{
+  "run_id": "smoke_test",
+  "timestamp": "2026-05-02T10:58:24.853623",
+  "git_hash": "fecd182",
+  "runs": [
+    {
+      "key": "cadex__T1_ClassicalConditioning",
+      "model_name": "cadex",
+      "task_name": "T1_ClassicalConditioning",
+      "learning_index": 0.19000000000000003,
+      "n_trials": 10,
+      "total_wall_time_min": 72.45445553859075
+    }
+  ]
+}

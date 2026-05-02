@@ -1,18 +1,20 @@
 # Task T1 — Classical Conditioning
 # Spec Section 5.1
+# CS-US timing: CS persists through US window so pre-synaptic traces
+# are active when US drives post-synaptic firing → LTP conditions met
 
 task:
   name: T1_ClassicalConditioning
   n_trials: 200
-  trial_duration_ms: 500.0
-  cs_onset_ms: 100.0
-  cs_duration_ms: 100.0
-  us_onset_ms: 200.0
-  us_duration_ms: 100.0
-  response_onset_ms: 300.0
+  trial_duration_ms: 400.0
+  cs_onset_ms: 50.0
+  cs_duration_ms: 150.0    # CS persists 50-200ms — overlaps with US
+  us_onset_ms: 150.0       # US starts at 150ms (100ms after CS onset)
+  us_duration_ms: 50.0     # US lasts 150-200ms
+  response_onset_ms: 200.0 # Score after CS+US window
   response_duration_ms: 200.0
-  cs_current: 400.0        # pA
-  us_current: 500.0        # pA
-  cs_fraction: 0.3         # fraction of input population
-  cr_threshold: 20.0       # Hz — conditioned response threshold
+  cs_current: 400.0
+  us_current: 500.0
+  cs_fraction: 0.3
+  cr_threshold: 20.0
   n_conditioning_trials: 150
