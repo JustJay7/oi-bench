@@ -1,0 +1,15 @@
+# Task T5 — Delay Match-to-Sample
+# Spec Section 5.3
+
+task:
+  name: T5_DelayMatchToSample
+  n_patterns: 4
+  sample_duration_ms: 100.0
+  delay_duration_ms: 500.0
+  test_duration_ms: 100.0
+  response_duration_ms: 100.0
+  pattern_current: 400.0     # pA
+  pattern_fraction: 0.25
+  n_trials: 200
+  match_prob: 0.5
+  seed: 42

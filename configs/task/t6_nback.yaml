@@ -1,0 +1,13 @@
+# Task T6 — N-Back
+# Spec Section 5.3
+
+task:
+  name: T6_NBack
+  n_back_values: [1, 2]
+  n_stimuli: 3
+  trials_per_block: 200
+  stimulus_duration_ms: 200.0
+  isi_ms: 300.0
+  stimulus_current: 400.0    # pA
+  stimulus_fraction: 0.3
+  seed: 42

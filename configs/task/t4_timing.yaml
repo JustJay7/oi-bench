@@ -1,0 +1,10 @@
+# Task T4 — Interval Timing
+# Spec Section 5.2
+
+task:
+  name: T4_IntervalTiming
+  target_intervals_ms: [200.0, 500.0, 1000.0]
+  n_trials_per_interval: 50
+  cue_duration_ms: 20.0
+  cue_current: 400.0         # pA
+  cue_fraction: 0.3

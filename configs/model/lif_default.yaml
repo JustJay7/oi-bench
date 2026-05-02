@@ -1,0 +1,40 @@
+# LIF Baseline Model — Default Configuration
+# Ablation: standard LIF neuron, same learning rules as CAdEx
+# Differences from cadex_default: no adaptation, no calcium, no fractional memory
+
+model:
+  name: lif
+  n_input: 100
+  n_output: 50
+  conn_prob: 1.0
+  dt: 0.1
+  I_background: 150.0
+  plasticity: true
+  homeostasis: true
+  seed: 0
+
+  lif:
+    C_m: 200.0
+    g_L: 10.0
+    E_L: -70.0
+    V_peak: 20.0
+    V_r: -65.0
+
+  synapse:
+    A2_plus: 0.006
+    A3_plus: 0.009
+    A2_minus: 0.003
+    tau_plus: 16.8
+    tau_minus: 33.7
+    tau_x: 101.0
+    tau_y: 125.0
+    tau_syn: 15.0
+    g_max: 3.0
+    w_init: 0.3
+    w_min: 0.0
+    w_max: 1.0
+
+  homeostatic:
+    r_target: 5.0
+    gamma: 0.5
+    eta_h: 0.001

@@ -1,0 +1,15 @@
+# Task T2 — Pattern Completion
+# Spec Section 5.1
+
+task:
+  name: T2_PatternCompletion
+  n_patterns: 10
+  pattern_sparsity: 0.3
+  noise_level: 0.3
+  n_learning_reps: 20
+  pattern_duration_ms: 200.0
+  response_onset_ms: 100.0
+  response_duration_ms: 100.0
+  pattern_current: 400.0
+  similarity_threshold: 0.7
+  seed: 42

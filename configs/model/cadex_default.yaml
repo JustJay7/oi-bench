@@ -1,0 +1,51 @@
+# CAdEx Reference Model — Default Configuration
+# All parameters match spec Section 4 defaults
+
+model:
+  name: cadex
+  n_input: 100
+  n_output: 50
+  alpha: 0.85          # fractional membrane order (1.0 = integer ablation)
+  conn_prob: 1.0       # input→output connectivity
+  dt: 0.1              # ms
+  I_background: 150.0  # pA — output population tonic drive
+  plasticity: true
+  homeostasis: true
+  seed: 0
+
+  cadex:
+    C_m: 200.0          # pF
+    g_L: 10.0           # nS
+    E_L: -70.0          # mV
+    delta_T: 2.0        # mV
+    V_T: -50.0          # mV
+    V_peak: 20.0        # mV
+    V_r: -65.0          # mV
+    tau_w: 100.0        # ms
+    a: 2.0              # nS
+    b: 20.0             # pA
+    tau_Ca: 80.0        # ms
+    rho: 0.1            # uM/spike
+    g_Ca: 1.5           # nS
+    E_Ca: 120.0         # mV
+
+  synapse:
+    A2_plus: 0.006
+    A3_plus: 0.009
+    A2_minus: 0.003
+    tau_plus: 16.8      # ms
+    tau_minus: 33.7     # ms
+    tau_x: 101.0        # ms
+    tau_y: 125.0        # ms
+    tau_syn: 15.0       # ms
+    g_max: 3.0          # nS
+    w_init: 0.3
+    w_min: 0.0
+    w_max: 1.0
+
+  homeostatic:
+    r_target: 5.0       # Hz
+    gamma: 0.5
+    eta_h: 0.001        # mV/(Hz·ms)
+    w_min: 0.0
+    w_max: 1.0

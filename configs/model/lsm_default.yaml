@@ -1,0 +1,15 @@
+# LSM Baseline Model — Default Configuration
+# Ablation: fixed spiking reservoir, linear readout only
+# No STDP, no homeostasis — quantifies what learning rules contribute
+
+model:
+  name: lsm
+  n_input: 100
+  n_reservoir: 200
+  n_output: 50
+  conn_prob_in: 0.1
+  conn_prob_rec: 0.1
+  spectral_radius: 0.9    # must be < 1 for echo state property
+  dt: 0.1
+  I_background: 150.0
+  seed: 0

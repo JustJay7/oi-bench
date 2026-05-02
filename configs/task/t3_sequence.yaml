@@ -1,0 +1,15 @@
+# Task T3 — Sequence Prediction
+# Spec Section 5.2
+
+task:
+  name: T3_SequencePrediction
+  n_elements: 5
+  element_duration_ms: 20.0
+  isi_ms: 30.0
+  n_learning_trials: 200
+  n_test_trials: 100
+  truncate_at: 2             # truncate after element C (0-indexed)
+  element_current: 400.0     # pA
+  element_fraction: 0.15     # fraction of input per element
+  timing_tolerance_ms: 10.0
+  seed: 42

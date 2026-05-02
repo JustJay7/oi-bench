@@ -1,0 +1,18 @@
+# Task T1 — Classical Conditioning
+# Spec Section 5.1
+
+task:
+  name: T1_ClassicalConditioning
+  n_trials: 200
+  trial_duration_ms: 500.0
+  cs_onset_ms: 100.0
+  cs_duration_ms: 100.0
+  us_onset_ms: 200.0
+  us_duration_ms: 100.0
+  response_onset_ms: 300.0
+  response_duration_ms: 200.0
+  cs_current: 400.0        # pA
+  us_current: 500.0        # pA
+  cs_fraction: 0.3         # fraction of input population
+  cr_threshold: 20.0       # Hz — conditioned response threshold
+  n_conditioning_trials: 150
