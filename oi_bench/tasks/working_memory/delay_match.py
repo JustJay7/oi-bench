@@ -10,24 +10,19 @@ PROTOCOL
 Sample stimulus (one of 4 spatial patterns, 100ms)
 → Delay period (500ms, no input)
 → Test stimulus (same or different pattern, 100ms)
-→ Response window (100ms): match or non-match
+→ Response window (100ms): match or non-match scored here
 
 SCORING
 -------
-The runner passes response = mean firing rate over the full trial (Hz),
-shape (n_output,). We split the output population in half:
-  - First half  → match  detector
-  - Second half → non-match detector
+requires_spike_times=True. Runner provides spike_counts_timeseries
+shape (n_steps,) in metadata. We read only the response window
+(last 100ms of the 800ms trial).
 
-The half with higher mean firing rate is the model's response.
-This is a population rate-code readout — substrate-agnostic and consistent
-with the population rate code readout defined in spec Section 12 Q1.
-
-Score per trial:
-  accuracy    : 1.0 if correct response, 0.0 otherwise
-  is_match    : 1.0 if trial is a match trial
-  hit         : 1.0 if match trial and model responded match
-  false_alarm : 1.0 if non-match trial and model responded match
+Response window scoring: first half of output = match detector,
+second half = non-match detector. We use the fraction of trial
+spikes that fell in the response window to weight the per-neuron
+mean firing rate, isolating decision-period activity from
+sample+delay activity.
 
 References:
   Funahashi et al. (1989) J Neurophysiol 61:331-349
@@ -36,8 +31,6 @@ References:
 """
 
 from __future__ import annotations
-import jax
-import jax.numpy as jnp
 import numpy as np
 from typing import List
 
@@ -96,6 +89,15 @@ class DelayMatchTask(BenchmarkTask):
     def learning_axis(self) -> str:
         return "working_memory"
 
+    @property
+    def requires_spike_times(self) -> bool:
+        """
+        T5 scoring must read only the 100ms response window.
+        Full-trial mean rate is dominated by 700ms of sample+delay
+        activity unrelated to the match/non-match decision.
+        """
+        return True
+
     def setup(self, model: OIModel) -> None:
         self._n_input  = model.n_input
         self._n_output = model.n_output
@@ -151,31 +153,43 @@ class DelayMatchTask(BenchmarkTask):
         metadata: dict | None = None,
     ) -> dict:
         """
-        Score using population rate-code readout from response array.
+        Score using response-window spike fraction weighting.
 
-        response = mean firing rate over full trial, shape (n_output,).
-        First half of output = match detector.
-        Second half of output = non-match detector.
-        Whichever half has higher mean rate is the model's decision.
+        spike_counts_timeseries: (n_steps,) population total per step.
+        response: (n_output,) mean Hz over full trial.
 
-        This is always populated by the runner regardless of record_traces.
+        We compute what fraction of all trial spikes occurred in the
+        response window, then weight the per-neuron response array by
+        that fraction. This approximates reading only the response window
+        without requiring per-neuron per-timestep traces.
         """
         _, _, is_match = self._trial_info[trial_id]
-
+        spike_ts    = (metadata.get('spike_counts_timeseries')
+                       if metadata is not None else None)
         response_np = np.array(response)
-        half        = self._n_output // 2
+        half        = max(1, self._n_output // 2)
 
-        match_rate    = float(np.mean(response_np[:half]))
-        nonmatch_rate = float(np.mean(response_np[half:]))
+        if spike_ts is not None and len(spike_ts) > 0:
+            total_steps  = len(spike_ts)
+            resp_steps   = int(self._response_dur / self._dt)
+            resp_start   = max(0, total_steps - resp_steps)
+            total_spikes = float(np.sum(spike_ts)) + 1e-10
+            resp_spikes  = float(np.sum(spike_ts[resp_start:])) + 1e-10
+            resp_frac    = resp_spikes / total_spikes
+            # Weight per-neuron rate by fraction of activity in response window
+            weighted     = response_np * resp_frac
+            match_rate    = float(np.mean(weighted[:half]))
+            nonmatch_rate = float(np.mean(weighted[half:]))
+        else:
+            match_rate    = float(np.mean(response_np[:half]))
+            nonmatch_rate = float(np.mean(response_np[half:]))
 
         responded_match = match_rate > nonmatch_rate
         correct         = (responded_match == is_match)
-        hit             = float(is_match and responded_match)
-        false_alarm     = float((not is_match) and responded_match)
 
         return {
             'accuracy':    float(correct),
             'is_match':    float(is_match),
-            'hit':         hit,
-            'false_alarm': false_alarm,
+            'hit':         float(is_match and responded_match),
+            'false_alarm': float((not is_match) and responded_match),
         }

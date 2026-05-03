@@ -8,39 +8,30 @@ Every run gets a unique directory under results/ with:
   - summary.csv  : one row per (model, task) with key metrics
 
 HDF5 structure:
-  /run_id/
+  /{model}__{task}/
     metadata/
-      model_name      : str
-      task_name       : str
-      timestamp       : str
-      git_hash        : str
+      model_name, task_name, learning_index, n_trials  (attrs)
     trials/
       trial_{i}/
-        scores/       : dict of scalar floats
-        response/     : array (n_output,)
-        metadata/     : dict
-    weights/
-      trial_{i}/      : weight matrix snapshot (n_pre, n_post)
+        scores/   (attrs — scalar floats)
+        response  (dataset — n_output,)
+        correct, trial_type, wall_time  (attrs)
+    weight_stats/
+      trial_{i}/  (attrs — mean, std, frac_silent, etc.)
     metrics/
-      learning_index  : float
-      convergence_trial: int
-      asymptotic_performance: float
-      sample_efficiency: float
+      learning_index, convergence_trial, asymptotic_performance,
+      sample_efficiency  (attrs)
 
-References:
-  Spec Section 6, harness/logger.py
+Design: uses require_group / delete+recreate for datasets so reruns
+into the same run_id are safe (e.g. after a crash mid-run).
 """
 
 from __future__ import annotations
-import os
 import json
 import csv
-import time
-import hashlib
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from dataclasses import asdict
 
 import h5py
 import numpy as np
@@ -76,13 +67,24 @@ class BenchmarkLogger:
         self.manifest_path = self.run_dir / "manifest.json"
         self.summary_path  = self.run_dir / "summary.csv"
 
-        self._manifest   = {
-            'run_id':    self.run_id,
-            'timestamp': datetime.now().isoformat(),
-            'git_hash':  self._get_git_hash(),
-            'runs':      [],
-        }
+        # Load existing manifest if resuming a crashed run
+        if self.manifest_path.exists():
+            with open(self.manifest_path) as f:
+                self._manifest = json.load(f)
+        else:
+            self._manifest = {
+                'run_id':    self.run_id,
+                'timestamp': datetime.now().isoformat(),
+                'git_hash':  self._get_git_hash(),
+                'runs':      [],
+            }
+
+        # Load existing summary rows if resuming
         self._summary_rows = []
+        if self.summary_path.exists():
+            with open(self.summary_path, newline='') as f:
+                reader = csv.DictReader(f)
+                self._summary_rows = list(reader)
 
         print(f"  Logger: results → {self.run_dir}")
 
@@ -96,76 +98,98 @@ class BenchmarkLogger:
         except Exception:
             return 'unknown'
 
+    def _write_dataset(self, group: h5py.Group, name: str, data: np.ndarray) -> None:
+        """
+        Write a dataset, replacing it if it already exists.
+        Needed when resuming into an existing HDF5 file after a crash.
+        """
+        if name in group:
+            del group[name]
+        group.create_dataset(name, data=data, compression='gzip')
+
     def log(self, result: RunResult) -> None:
         """
         Save one RunResult to HDF5 and update manifest + summary.
 
-        Parameters
-        ----------
-        result : RunResult
-            Output from BenchmarkRunner.run().
+        Safe to call multiple times with the same run_id — existing
+        datasets are overwritten rather than duplicated.
         """
         key = f"{result.model_name}__{result.task_name}"
 
         with h5py.File(self.h5_path, 'a') as f:
-            grp = f.require_group(key)
+            # Remove existing group for this key if present (clean overwrite)
+            if key in f:
+                del f[key]
+            grp = f.create_group(key)
 
             # Metadata
-            meta = grp.require_group('metadata')
+            meta = grp.create_group('metadata')
             meta.attrs['model_name']     = result.model_name
             meta.attrs['task_name']      = result.task_name
             meta.attrs['learning_index'] = result.learning_index
             meta.attrs['n_trials']       = len(result.trial_results)
 
             # Trial data
-            trials_grp = grp.require_group('trials')
+            trials_grp = grp.create_group('trials')
             for r in result.trial_results:
-                t_grp = trials_grp.require_group(f"trial_{r.trial_id:04d}")
-                # Scores
-                scores_grp = t_grp.require_group('scores')
+                t_grp = trials_grp.create_group(f"trial_{r.trial_id:04d}")
+
+                # Scores as attrs
+                scores_grp = t_grp.create_group('scores')
                 for k, v in r.scores.items():
                     scores_grp.attrs[k] = float(v)
-                # Response
+
+                # Response as dataset
                 t_grp.create_dataset(
                     'response',
                     data=np.array(r.response, dtype=np.float32),
                     compression='gzip',
                 )
-                # Metadata
+
+                # Trial metadata as attrs
                 t_grp.attrs['correct']    = int(r.correct) if r.correct is not None else -1
                 t_grp.attrs['trial_type'] = r.metadata.get('trial_type', 'unknown')
                 t_grp.attrs['wall_time']  = float(r.metadata.get('wall_time', 0.0))
 
-            # Weight history
+            # Weight stats history
             if result.weight_stats_per_trial:
-                weights_grp = grp.require_group('weight_stats')
+                ws_grp = grp.create_group('weight_stats')
                 for i, ws in enumerate(result.weight_stats_per_trial):
-                    w_grp = weights_grp.require_group(f"trial_{i:04d}")
+                    w_grp = ws_grp.create_group(f"trial_{i:04d}")
                     for k, v in ws.items():
                         if v is not None:
                             w_grp.attrs[k] = float(v)
 
             # Computed metrics
             lc = learning_curve_stats(result.trial_results)
-            metrics_grp = grp.require_group('metrics')
-            metrics_grp.attrs['learning_index']          = result.learning_index
-            metrics_grp.attrs['convergence_trial']       = lc['convergence_trial']
-            metrics_grp.attrs['asymptotic_performance']  = lc['asymptotic_performance']
-            metrics_grp.attrs['sample_efficiency']       = lc['sample_efficiency']
+            metrics_grp = grp.create_group('metrics')
+            metrics_grp.attrs['learning_index']         = result.learning_index
+            metrics_grp.attrs['convergence_trial']      = lc['convergence_trial']
+            metrics_grp.attrs['asymptotic_performance'] = lc['asymptotic_performance']
+            metrics_grp.attrs['sample_efficiency']      = lc['sample_efficiency']
 
-        # Update manifest
+        # Update manifest — replace existing entry for this key if present
+        self._manifest['runs'] = [
+            r for r in self._manifest['runs']
+            if r.get('key') != key
+        ]
         self._manifest['runs'].append({
-            'key':                    key,
-            'model_name':             result.model_name,
-            'task_name':              result.task_name,
-            'learning_index':         result.learning_index,
-            'n_trials':               len(result.trial_results),
-            'total_wall_time_min':    sum(result.wall_time_per_trial) / 60.0,
+            'key':                 key,
+            'model_name':          result.model_name,
+            'task_name':           result.task_name,
+            'learning_index':      result.learning_index,
+            'n_trials':            len(result.trial_results),
+            'total_wall_time_min': sum(result.wall_time_per_trial) / 60.0,
         })
         self._save_manifest()
 
-        # Update summary
+        # Update summary — replace existing row for this key if present
         lc = learning_curve_stats(result.trial_results)
+        self._summary_rows = [
+            r for r in self._summary_rows
+            if not (r.get('model') == result.model_name
+                    and r.get('task') == result.task_name)
+        ]
         self._summary_rows.append({
             'model':                  result.model_name,
             'task':                   result.task_name,
@@ -193,11 +217,9 @@ class BenchmarkLogger:
             writer.writerows(self._summary_rows)
 
     def print_summary(self) -> None:
-        """Print a formatted summary table to stdout."""
         if not self._summary_rows:
             print("No results logged yet.")
             return
-
         print(f"\n{'='*75}")
         print(f"  OI-Bench Results — Run {self.run_id}")
         print(f"{'='*75}")

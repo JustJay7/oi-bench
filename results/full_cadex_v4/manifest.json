@@ -1,0 +1,31 @@
+{
+  "run_id": "full_cadex_v4",
+  "timestamp": "2026-05-03T11:03:49.034078",
+  "git_hash": "1a34fce",
+  "runs": [
+    {
+      "key": "cadex__T1_ClassicalConditioning",
+      "model_name": "cadex",
+      "task_name": "T1_ClassicalConditioning",
+      "learning_index": 0.9864999999999999,
+      "n_trials": 200,
+      "total_wall_time_min": 3.704428994655609
+    },
+    {
+      "key": "cadex__T2_PatternCompletion",
+      "model_name": "cadex",
+      "task_name": "T2_PatternCompletion",
+      "learning_index": 0.15200000000000002,
+      "n_trials": 150,
+      "total_wall_time_min": 1.529065438111623
+    },
+    {
+      "key": "cadex__T3_SequencePrediction",
+      "model_name": "cadex",
+      "task_name": "T3_SequencePrediction",
+      "learning_index": 0.9470000000000001,
+      "n_trials": 300,
+      "total_wall_time_min": 3.69394858678182
+    }
+  ]
+}
