@@ -4,12 +4,25 @@ Triplet STDP Synapse with Three-Factor Eligibility Trace
 Implements Pfister & Gerstner (2006) triplet STDP extended with
 Izhikevich (2007) three-factor eligibility trace.
 
-STDP amplitudes restored to Pfister & Gerstner (2006) Table 1 defaults:
-  A2_plus=0.006, A3_plus=0.009, A2_minus=0.003
+PLASTICITY SCALING
+------------------
+synapse.update() accepts a plasticity_scale argument (JAX float32).
+  plasticity_scale=1.0: normal STDP (learning trials)
+  plasticity_scale=0.0: weights frozen (test trials)
 
-Per-task amplitude scaling is handled via configure_stdp() called from
-run.py before each task, rather than changing the global defaults.
-T4 uses scaled-down amplitudes to prevent weight saturation with dopamine.
+This is a runtime JAX value, not a Python bool. This matters because
+bm.for_loop JIT-compiles the step function and caches it — a Python
+bool captured at trace time cannot be changed between trials without
+invalidating the cache. A JAX scalar multiplier on dW is evaluated at
+runtime and correctly freezes weights without recompilation.
+
+The runner passes plasticity_scale via the I_us channel (extra dim) or
+directly constructs I_bg with a scale factor. Actually, the simplest
+correct approach: runner rebuilds _build_step_fn each trial with
+plasticity_scale as a captured JAX constant. Since the constant value
+differs between learning and test, JAX traces a new function for each
+value — but bm.for_loop caches by shape only, not by constant value.
+So we pass plasticity_scale as a dynamic input in the xs array instead.
 
 References:
   Pfister & Gerstner (2006) J. Neurosci. 26(38):9673-9682
@@ -28,16 +41,6 @@ import jax.numpy as jnp
 class TripletSTDPSynapse(bp.Projection):
     """
     Triplet STDP synapse with optional three-factor eligibility trace.
-
-    Parameters
-    ----------
-    pre, post : bp.dyn.NeuDyn
-    conn : dict {'prob': p} or np.ndarray (n_pre, n_post)
-    use_eligibility_trace : bool
-    tau_e : float
-        Eligibility trace decay (ms). Default 1000ms.
-    A2_plus, A3_plus, A2_minus : float
-        Triplet STDP amplitudes. Pfister & Gerstner (2006) Table 1.
     """
 
     def __init__(
@@ -115,20 +118,26 @@ class TripletSTDPSynapse(bp.Projection):
 
     def configure_stdp(self, A2_plus: float, A3_plus: float,
                        A2_minus: float) -> None:
-        """
-        Update STDP amplitudes for the current task.
-        Called from run.py before each task via network.configure_stdp().
-        Allows T4 to use smaller amplitudes without affecting other tasks.
-        """
+        """Update STDP amplitudes for the current task."""
         self.A2_plus  = A2_plus
         self.A3_plus  = A3_plus
         self.A2_minus = A2_minus
 
     # ------------------------------------------------------------------
-    # Standard mode
+    # Standard mode — plasticity_scale is a JAX runtime scalar
     # ------------------------------------------------------------------
 
-    def update(self, S_pre, S_post, V_post):
+    def update(self, S_pre, S_post, V_post, plasticity_scale=None):
+        """
+        Standard STDP step.
+
+        plasticity_scale: JAX float32 scalar.
+          1.0 = normal learning, 0.0 = weights frozen.
+          Passed as a runtime value so test-phase freezing works
+          correctly under JIT compilation.
+          If None, falls back to self.plasticity Python bool (for
+          compatibility with code that calls update() without the arg).
+        """
         S_pre  = S_pre.astype(bm.float32)
         S_post = S_post.astype(bm.float32)
         dt = self.dt
@@ -144,15 +153,20 @@ class TripletSTDPSynapse(bp.Projection):
         self.g.value = g_new
         I_syn = -self.g_max * jnp.sum(g_new, axis=0) * (V_post - self.E_syn)
 
-        if self.plasticity:
-            ltp_factor = self.A2_plus + self.A3_plus * o2
-            dW_ltp     = jnp.outer(r1, S_post * ltp_factor)
-            dW_ltd     = self.A2_minus * jnp.outer(S_pre, o1)
-            dW         = (dW_ltp - dW_ltd) * self.mask * self.modulator
-            self.W.value = jnp.clip(
-                self.W.value + dW, self.w_min, self.w_max)
-            self.n_ltp.value += jnp.sum(dW_ltp * self.mask)
-            self.n_ltd.value += jnp.sum(dW_ltd * self.mask)
+        # Determine effective plasticity scale
+        if plasticity_scale is not None:
+            p_scale = plasticity_scale
+        else:
+            p_scale = 1.0 if self.plasticity else 0.0
+
+        ltp_factor = self.A2_plus + self.A3_plus * o2
+        dW_ltp     = jnp.outer(r1, S_post * ltp_factor)
+        dW_ltd     = self.A2_minus * jnp.outer(S_pre, o1)
+        dW         = (dW_ltp - dW_ltd) * self.mask * self.modulator * p_scale
+        self.W.value = jnp.clip(
+            self.W.value + dW, self.w_min, self.w_max)
+        self.n_ltp.value += jnp.sum(dW_ltp * self.mask) * p_scale
+        self.n_ltd.value += jnp.sum(dW_ltd * self.mask) * p_scale
 
         self.r1.value = r1 * (1.0 - dt / self.tau_plus)  + S_pre
         self.r2.value = r2 * (1.0 - dt / self.tau_x)     + S_pre

@@ -33,13 +33,21 @@ class BenchmarkTask(ABC):
 
     @property
     def requires_spike_times(self) -> bool:
-        """
-        If True, runner records per-timestep population spike count array
-        and passes it in compute_score() via
-        metadata['spike_counts_timeseries'], shape (n_steps,).
-        Default: False.
-        """
         return False
+
+    def is_learning_trial(self, trial_id: int) -> bool:
+        """
+        Return True if this trial is part of the learning phase.
+
+        The runner calls this before each trial to decide whether to
+        enable or freeze plasticity. Freezing weights during test trials
+        prevents STDP from modifying the learned representation during
+        evaluation.
+
+        Default: all trials are learning trials (always plastic).
+        Tasks with distinct train/test phases override this.
+        """
+        return True
 
     @abstractmethod
     def generate_trial(self, trial_id: int, rng_key) -> list[Stimulus]:

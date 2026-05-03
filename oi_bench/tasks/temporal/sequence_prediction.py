@@ -16,17 +16,19 @@ Trial structure:
   Trials n_learning_trials to end    : Test — truncated A→B→C only,
                                        score whether output fires in D/E windows
 
+PLASTICITY DURING TEST
+----------------------
+is_learning_trial() returns False for test trials (trial_id >= n_learning).
+The runner passes plasticity_scale=0.0 into synapse.update() during test
+trials, freezing weights. Without this, test-phase STDP causes weight
+explosion (0.64 → 0.96 in 10 trials) as the truncated stimulus drives
+unbalanced LTP, corrupting test scores.
+
 SCORING
 -------
 requires_spike_times=True so runner provides per-timestep population spike
 counts in metadata['spike_counts_timeseries']. On test trials we check for
 output activity in the D and E element windows after the truncation point.
-
-Score per trial:
-  accuracy          : mean(d_correct, e_correct)
-  timing_precision  : same as accuracy
-  d_correct         : 1.0 if output fires during D window
-  e_correct         : 1.0 if output fires during E window
 
 References:
   Dragoi & Tonegawa (2011) Nature 469:397-401
@@ -94,11 +96,11 @@ class SequencePredictionTask(BenchmarkTask):
 
     @property
     def requires_spike_times(self) -> bool:
-        """
-        Test-trial scoring checks for output activity in specific
-        temporal windows — requires per-timestep spike counts.
-        """
         return True
+
+    def is_learning_trial(self, trial_id: int) -> bool:
+        """Freeze plasticity during test trials to prevent STDP corruption."""
+        return trial_id < self._n_learning
 
     def setup(self, model: OIModel) -> None:
         self._n_input  = model.n_input
@@ -146,14 +148,13 @@ class SequencePredictionTask(BenchmarkTask):
 
     def compute_score(
         self,
-        response: "jnp.ndarray",
+        response,
         trial_id: int,
         state_trace: List[ModelState],
         metadata: dict | None = None,
     ) -> dict:
         is_test = trial_id >= self._n_learning
 
-        # Learning trials: not scored — return perfect to avoid polluting LI
         if not is_test:
             return {'accuracy': 1.0, 'timing_precision': 1.0,
                     'd_correct': 1.0, 'e_correct': 1.0}
@@ -162,7 +163,6 @@ class SequencePredictionTask(BenchmarkTask):
                    if metadata is not None else None
 
         if spike_ts is None or len(spike_ts) == 0:
-            # Fallback: use total mean response rate as weak proxy
             mean_rate = float(np.mean(np.array(response)))
             score     = float(mean_rate > 0) * 0.5
             return {'accuracy': score, 'timing_precision': 0.0,
@@ -191,7 +191,6 @@ class SequencePredictionTask(BenchmarkTask):
         }
 
     def learning_index(self, trial_results: list) -> float:
-        """Override: LI computed on test trials only."""
         test_results = [r for r in trial_results if r.trial_id >= self._n_learning]
         if not test_results:
             return 0.0
