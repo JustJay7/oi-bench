@@ -11,25 +11,15 @@ Usage:
     python run.py --smoke                  # minimal trial counts (fast)
     python run.py --model_seed 42          # reproducibility seed
 
-T2 scoring:
-    PatternCompletionTask now uses closest-centroid classification.
-    During learning, output response vectors are averaged per pattern.
-    During test, the output is compared against stored centroids via
-    cosine similarity. This correctly measures attractor basin formation
-    rather than bit-level reproduction of the input pattern.
+HOMEO_CONFIG T3 r_target change: 25Hz → 60Hz
+    With wider V_T bounds (derived from neuron params), homeostasis
+    has more range to regulate over-firing. T3 sequence learning drives
+    the output population well above 25Hz during dense stimulus windows.
+    r_target=60Hz better matches the natural firing rate under T3 stimuli,
+    preventing homeostasis from over-suppressing the network during learning.
 
-T4 three-factor eligibility trace (Izhikevich 2007):
-    Models use dopamine-gated STDP for T4. STDP events accumulate in
-    eligibility traces e_ij (τ_e=1000ms). After each trial,
-    t4_modulator_fn computes a dopamine reward signal.
-
-    Curriculum tolerance: starts at ±80% of T_target and linearly
-    narrows to ±15% by trial 100. This solves the cold-start problem —
-    early trials get reward for rough timing, later trials require
-    precision. The reward magnitude still scales with proximity so
-    there is always a gradient toward exact timing.
-
-    Reference: Izhikevich (2007) Cereb. Cortex 17:2443-2452
+report_every: 5 in smoke (T4 has 15 trials → shows 5, 10, 15)
+              10 in full run
 """
 
 import os
@@ -62,7 +52,7 @@ from oi_bench.harness.logger import BenchmarkLogger
 HOMEO_CONFIG = {
     'T1': {'r_target': 110.0, 'trial_dur_ms':  400.0, 'enabled': True},
     'T2': {'r_target': 200.0, 'trial_dur_ms':  200.0, 'enabled': True},
-    'T3': {'r_target':  25.0, 'trial_dur_ms':  250.0, 'enabled': True},
+    'T3': {'r_target':  60.0, 'trial_dur_ms':  250.0, 'enabled': True},
     'T4': {'r_target':   5.0, 'trial_dur_ms': 1220.0, 'enabled': False},
     'T5': {'r_target':  50.0, 'trial_dur_ms':  800.0, 'enabled': True},
     'T6': {'r_target':  50.0, 'trial_dur_ms':  500.0, 'enabled': True},
@@ -77,44 +67,29 @@ ELIGIBILITY_CONFIG = {
 
 
 # ------------------------------------------------------------------
-# T4 dopamine modulator function with curriculum tolerance
-#
-# Curriculum: tolerance starts wide (80%) and narrows to 15% by
-# trial 100. This gives the network a reward signal even from rough
-# early timing, then gradually demands precision.
-#
-# Reward magnitude scales with proximity within the current tolerance
-# window: da_level = 1 - (weber_error / tolerance)
-#
-# This is a closure — we use a mutable container to track trial count
-# across calls, since modulator_fn is called once per trial.
+# T4 dopamine modulator with curriculum tolerance
 # ------------------------------------------------------------------
-def make_t4_modulator_fn():
+def make_t4_modulator_fn(n_trials: int = 150):
     """
-    Factory that returns a stateful T4 modulator function.
-
-    Returns a closure that tracks trial count internally and
-    applies curriculum tolerance scheduling.
+    Curriculum: linear decay from 1.0 to 0.15 over n_trials.
+    tol_start=1.0: full gradient from trial 1.
+    tol_trials=n_trials: narrows continuously over the full task.
     """
     state = {'trial_count': 0}
 
     def t4_modulator_fn(trial_id: int, scores: dict) -> float:
         weber_error = scores.get('weber_error', 1.0)
-        t = state['trial_count']
+        t           = state['trial_count']
         state['trial_count'] += 1
 
-        # Curriculum: linear decay from 0.80 to 0.15 over 100 trials
-        tol_start = 0.80
+        tol_start = 1.0
         tol_end   = 0.15
-        tol_trials = 100
-        tolerance = max(tol_end, tol_start - (tol_start - tol_end) * t / tol_trials)
+        progress  = min(1.0, t / max(n_trials - 1, 1))
+        tolerance = tol_start - (tol_start - tol_end) * progress
 
         if weber_error <= tolerance:
-            da_level = float(1.0 - weber_error / tolerance)
-        else:
-            da_level = 0.0
-
-        return da_level
+            return float(1.0 - weber_error / tolerance)
+        return 0.0
 
     return t4_modulator_fn
 
@@ -145,7 +120,6 @@ def build_models(seed: int = 0) -> dict:
 
 # ------------------------------------------------------------------
 # Task registry
-# n_patterns=5: within Hopfield capacity for n_output=50 (~0.14×50=7)
 # ------------------------------------------------------------------
 def build_tasks(smoke: bool = False) -> dict:
     if smoke:
@@ -201,7 +175,7 @@ def main():
     runner = BenchmarkRunner(
         record_traces = args.record_traces,
         verbose       = True,
-        report_every  = 10,
+        report_every  = 5 if args.smoke else 10,
         global_seed   = args.model_seed,
     )
     logger = BenchmarkLogger(
@@ -227,7 +201,6 @@ def main():
             print(f"\n[{run_count}/{n_runs}] {model_name} × {task_name}")
             print(f"  Started: {datetime.now().strftime('%H:%M:%S')}")
 
-            # Configure homeostasis for this task
             if hasattr(model, 'configure_homeostasis') and task_name in HOMEO_CONFIG:
                 cfg = HOMEO_CONFIG[task_name]
                 model.configure_homeostasis(
@@ -236,7 +209,6 @@ def main():
                     enabled      = cfg.get('enabled', True),
                 )
 
-            # Configure eligibility trace mode
             if hasattr(model, 'configure_eligibility_trace'):
                 if task_name in ELIGIBILITY_CONFIG:
                     ecfg = ELIGIBILITY_CONFIG[task_name]
@@ -247,11 +219,12 @@ def main():
                 else:
                     model.configure_eligibility_trace(enabled=False)
 
-            # Build fresh modulator function for T4 (stateful curriculum)
-            modulator_fn = make_t4_modulator_fn() if task_name == 'T4' else None
+            if task_name == 'T4':
+                n_t4_trials  = len(task._intervals) * task._n_per_interval
+                modulator_fn = make_t4_modulator_fn(n_trials=n_t4_trials)
+            else:
+                modulator_fn = None
 
-            # Reset fast-timescale state between tasks.
-            # Synaptic weights are NOT reset — they persist.
             model.reset()
 
             try:
@@ -268,7 +241,6 @@ def main():
                 traceback.print_exc()
                 continue
 
-            # Release XLA compiled kernels between tasks.
             jax.clear_caches()
 
             elapsed   = (time.time() - t_start) / 60.0

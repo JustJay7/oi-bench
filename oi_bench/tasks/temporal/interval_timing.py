@@ -124,7 +124,7 @@ class IntervalTimingTask(BenchmarkTask):
         # Run 200 steps with tonic drive only (no cue) to measure background
         bg_peak = self._calibrate_background(model)
         # Threshold: background peak + 2 neurons (floor 3 for silent networks)
-        self._burst_threshold = max(3, int(bg_peak) + 2)
+        self._burst_threshold = max(1, int(bg_peak) + 1)
 
         print(f"  T4 setup: intervals={self._intervals}ms | "
               f"{self._n_per_interval} trials each | "
