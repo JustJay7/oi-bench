@@ -2,7 +2,7 @@
 LIF Baseline Network — Standard Leaky Integrate-and-Fire
 
 Architecture mirrors CAdExNetwork exactly for valid ablation.
-post_trial accepts e_ff and e_rec kwargs for eligibility trace mode (T4).
+post_trial calls apply_weight_decay() matching CAdExNetwork.
 """
 
 import os
@@ -85,7 +85,7 @@ class LIFNetwork(OIModel):
         self.homeo.r_target     = r_target
         self.homeo.trial_dur_ms = trial_dur_ms
         self.homeo.r_mean[:]    = r_target
-        self.homeo.alpha        = 1.0 - np.exp(-1.0/5.0)
+        self.homeo.alpha        = 1.0 - np.exp(-1.0 / 5.0)
         self.homeo.enabled      = enabled
 
     def configure_eligibility_trace(self, enabled=False, tau_e=1000.0):
@@ -167,6 +167,8 @@ class LIFNetwork(OIModel):
             self.rec_synapse.apply_neuromodulation(modulator, e=e_rec)
         else:
             self.synapse.modulator = modulator
+        self.synapse.apply_weight_decay()
+        self.rec_synapse.apply_weight_decay()
         self.homeo.update(self._trial_spike_counts.copy())
 
     @property

@@ -1,20 +1,5 @@
 """
 CAdExNetwork — Reference OI Model implementing OIModel adapter interface.
-
-Architecture (per spec Section 4):
-  Input population  : CAdExNeuron (standard, n_input neurons)
-  Output population : CAdExFractalNeuron (fractional membrane, n_output neurons)
-  Feedforward synapse: TripletSTDPSynapse (input → output, all-to-all)
-  Recurrent synapse : TripletSTDPSynapse (output → output, 20% sparse)
-  Global inhibition : -inhibition_strength × mean_activity
-  Homeostasis       : HomeostaticPlasticity (output population, ITI)
-
-Three-factor eligibility trace (T4):
-  When configure_eligibility_trace(enabled=True), the runner uses
-  jax.lax.scan with explicit carry threading eligibility traces e_ff
-  and e_rec as pure JAX arrays. After each trial, the runner calls
-  post_trial(modulator, e_ff, e_rec) which passes the final trace
-  arrays to apply_neuromodulation() to gate weight updates.
 """
 
 import os
@@ -47,7 +32,6 @@ class CAdExNetwork(OIModel):
         seed: int           = 0,
     ):
         np.random.seed(seed)
-
         self._n_input    = n_input
         self._n_output   = n_output
         self._alpha      = alpha
@@ -57,7 +41,6 @@ class CAdExNetwork(OIModel):
 
         self.input_pop  = CAdExNeuron(size=n_input, dt=dt)
         self.output_pop = CAdExFractalNeuron(size=n_output, alpha=alpha, dt=dt)
-
         self.output_pop.V_T = bm.Variable(
             bm.full(n_output, self.output_pop.V_T))
 
@@ -78,13 +61,11 @@ class CAdExNetwork(OIModel):
         )
 
         self._inhibition_strength = 2.0
-
         self.homeo = HomeostaticPlasticity(
             neurons=self.output_pop, synapse=self.synapse,
             r_target=110.0, trial_dur_ms=400.0,
             gamma=0.5, eta_h=0.001, enabled=homeostasis,
         )
-
         self._trial_spike_counts = np.zeros(n_output, dtype=np.float32)
 
     def configure_homeostasis(self, r_target, trial_dur_ms, enabled=True):
@@ -94,14 +75,25 @@ class CAdExNetwork(OIModel):
         self.homeo.alpha        = 1.0 - np.exp(-1.0 / 5.0)
         self.homeo.enabled      = enabled
 
-    def configure_eligibility_trace(self, enabled=False, tau_e=1000.0):
+    def configure_stdp(
+        self,
+        A2_plus: float  = 0.006,
+        A3_plus: float  = 0.009,
+        A2_minus: float = 0.003,
+    ) -> None:
         """
-        Switch synapses to eligibility trace mode for T4.
+        Update STDP amplitudes for the current task.
 
-        When enabled=True, runner uses jax.lax.scan with explicit carry
-        for e_ff and e_rec. Weights only update via apply_neuromodulation
-        called in post_trial with the final trace arrays from the scan.
+        Called from run.py before each task. Allows T4 to use reduced
+        amplitudes (preventing weight saturation from dopamine reward)
+        without affecting other tasks which need full amplitudes.
+
+        Default values restore Pfister & Gerstner (2006) Table 1.
         """
+        self.synapse.configure_stdp(A2_plus, A3_plus, A2_minus)
+        self.rec_synapse.configure_stdp(A2_plus, A3_plus, A2_minus)
+
+    def configure_eligibility_trace(self, enabled=False, tau_e=1000.0):
         self.synapse.use_eligibility_trace     = enabled
         self.synapse.tau_e                     = tau_e
         self.rec_synapse.use_eligibility_trace = enabled
@@ -111,16 +103,11 @@ class CAdExNetwork(OIModel):
             self.rec_synapse.reset_eligibility()
 
     @property
-    def n_input(self):
-        return self._n_input
-
+    def n_input(self):  return self._n_input
     @property
-    def n_output(self):
-        return self._n_output
-
+    def n_output(self): return self._n_output
     @property
-    def dt(self):
-        return self._dt
+    def dt(self):       return self._dt
 
     def reset(self):
         self.input_pop.V.value      = bm.full(self._n_input,  self.input_pop.E_L)
@@ -192,22 +179,11 @@ class CAdExNetwork(OIModel):
         e_ff  = None,
         e_rec = None,
     ) -> None:
-        """
-        Apply plasticity at ITI.
-
-        In eligibility trace mode (T4): e_ff and e_rec are the final
-        eligibility trace arrays from the jax.lax.scan carry.
-        apply_neuromodulation gates them into weight changes.
-
-        In standard mode: modulator scales STDP directly.
-        Homeostasis applied in both modes.
-        """
         if self.synapse.use_eligibility_trace:
             self.synapse.apply_neuromodulation(modulator, e=e_ff)
             self.rec_synapse.apply_neuromodulation(modulator, e=e_rec)
         else:
             self.synapse.modulator = modulator
-
         self.homeo.update(self._trial_spike_counts.copy())
 
     @property

@@ -30,8 +30,8 @@ model:
     E_Ca: 120.0         # mV
 
   synapse:
-    A2_plus: 0.006
-    A3_plus: 0.009
+    A2_plus: 0.003
+    A3_plus: 0.005
     A2_minus: 0.003
     tau_plus: 16.8      # ms
     tau_minus: 33.7     # ms

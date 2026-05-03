@@ -11,15 +11,17 @@ Usage:
     python run.py --smoke                  # minimal trial counts (fast)
     python run.py --model_seed 42          # reproducibility seed
 
-HOMEO_CONFIG T3 r_target change: 25Hz → 60Hz
-    With wider V_T bounds (derived from neuron params), homeostasis
-    has more range to regulate over-firing. T3 sequence learning drives
-    the output population well above 25Hz during dense stimulus windows.
-    r_target=60Hz better matches the natural firing rate under T3 stimuli,
-    preventing homeostasis from over-suppressing the network during learning.
+STDP per-task configuration:
+    T1-T3, T5-T6: full amplitudes A2+=0.006, A3+=0.009 (Pfister & Gerstner 2006)
+    T4: halved amplitudes A2+=0.003, A3+=0.005
+        T4 uses dopamine-gated eligibility traces — each ITI the dopamine
+        signal gates accumulated STDP traces into weight changes. With full
+        amplitudes, this drives weights to saturation within 10 trials.
+        Halved amplitudes give the same learning direction but at half speed,
+        keeping weights in a productive range over 150 trials.
 
-report_every: 5 in smoke (T4 has 15 trials → shows 5, 10, 15)
-              10 in full run
+T4 curriculum tol_start restored to 1.0 now that STDP amplitudes are
+halved — the reduced amplitude prevents saturation even with full tolerance.
 """
 
 import os
@@ -52,10 +54,25 @@ from oi_bench.harness.logger import BenchmarkLogger
 HOMEO_CONFIG = {
     'T1': {'r_target': 110.0, 'trial_dur_ms':  400.0, 'enabled': True},
     'T2': {'r_target': 200.0, 'trial_dur_ms':  200.0, 'enabled': True},
-    'T3': {'r_target':  60.0, 'trial_dur_ms':  250.0, 'enabled': True},
+    'T3': {'r_target':  25.0, 'trial_dur_ms':  250.0, 'enabled': True},
     'T4': {'r_target':   5.0, 'trial_dur_ms': 1220.0, 'enabled': False},
     'T5': {'r_target':  50.0, 'trial_dur_ms':  800.0, 'enabled': True},
     'T6': {'r_target':  50.0, 'trial_dur_ms':  500.0, 'enabled': True},
+}
+
+# ------------------------------------------------------------------
+# Per-task STDP amplitude configuration
+# T4 uses halved amplitudes to prevent weight saturation from
+# dopamine-gated eligibility traces over 150 trials.
+# All other tasks use Pfister & Gerstner (2006) Table 1 defaults.
+# ------------------------------------------------------------------
+STDP_CONFIG = {
+    'T1': {'A2_plus': 0.006, 'A3_plus': 0.009, 'A2_minus': 0.003},
+    'T2': {'A2_plus': 0.006, 'A3_plus': 0.009, 'A2_minus': 0.003},
+    'T3': {'A2_plus': 0.006, 'A3_plus': 0.009, 'A2_minus': 0.003},
+    'T4': {'A2_plus': 0.003, 'A3_plus': 0.005, 'A2_minus': 0.003},
+    'T5': {'A2_plus': 0.006, 'A3_plus': 0.009, 'A2_minus': 0.003},
+    'T6': {'A2_plus': 0.006, 'A3_plus': 0.009, 'A2_minus': 0.003},
 }
 
 # ------------------------------------------------------------------
@@ -68,13 +85,9 @@ ELIGIBILITY_CONFIG = {
 
 # ------------------------------------------------------------------
 # T4 dopamine modulator with curriculum tolerance
+# tol_start=1.0: restored now that T4 uses halved STDP amplitudes
 # ------------------------------------------------------------------
 def make_t4_modulator_fn(n_trials: int = 150):
-    """
-    Curriculum: linear decay from 1.0 to 0.15 over n_trials.
-    tol_start=1.0: full gradient from trial 1.
-    tol_trials=n_trials: narrows continuously over the full task.
-    """
     state = {'trial_count': 0}
 
     def t4_modulator_fn(trial_id: int, scores: dict) -> float:
@@ -201,6 +214,7 @@ def main():
             print(f"\n[{run_count}/{n_runs}] {model_name} × {task_name}")
             print(f"  Started: {datetime.now().strftime('%H:%M:%S')}")
 
+            # Configure homeostasis
             if hasattr(model, 'configure_homeostasis') and task_name in HOMEO_CONFIG:
                 cfg = HOMEO_CONFIG[task_name]
                 model.configure_homeostasis(
@@ -209,6 +223,11 @@ def main():
                     enabled      = cfg.get('enabled', True),
                 )
 
+            # Configure STDP amplitudes
+            if hasattr(model, 'configure_stdp') and task_name in STDP_CONFIG:
+                model.configure_stdp(**STDP_CONFIG[task_name])
+
+            # Configure eligibility trace
             if hasattr(model, 'configure_eligibility_trace'):
                 if task_name in ELIGIBILITY_CONFIG:
                     ecfg = ELIGIBILITY_CONFIG[task_name]
