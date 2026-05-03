@@ -2,7 +2,6 @@
 LIF Baseline Network — Standard Leaky Integrate-and-Fire
 
 Architecture mirrors CAdExNetwork exactly for valid ablation.
-post_trial calls apply_weight_decay() matching CAdExNetwork.
 """
 
 import os
@@ -97,6 +96,10 @@ class LIFNetwork(OIModel):
             self.synapse.reset_eligibility()
             self.rec_synapse.reset_eligibility()
 
+    def configure_stdp(self, A2_plus=0.006, A3_plus=0.009, A2_minus=0.003):
+        self.synapse.configure_stdp(A2_plus, A3_plus, A2_minus)
+        self.rec_synapse.configure_stdp(A2_plus, A3_plus, A2_minus)
+
     @property
     def n_input(self):  return self._n_input
     @property
@@ -167,8 +170,6 @@ class LIFNetwork(OIModel):
             self.rec_synapse.apply_neuromodulation(modulator, e=e_rec)
         else:
             self.synapse.modulator = modulator
-        self.synapse.apply_weight_decay()
-        self.rec_synapse.apply_weight_decay()
         self.homeo.update(self._trial_spike_counts.copy())
 
     @property
