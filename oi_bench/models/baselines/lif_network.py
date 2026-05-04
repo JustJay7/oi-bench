@@ -1,7 +1,27 @@
 """
 LIF Baseline Network — Standard Leaky Integrate-and-Fire
 
-Architecture mirrors CAdExNetwork exactly for valid ablation.
+Architecture mirrors CAdExNetwork exactly for valid ablation comparison.
+Differences from CAdEx:
+  - LIF neuron: no adaptation current, no Ca dynamics, no fractal membrane
+  - Same triplet STDP, same homeostasis, same recurrent inhibition
+
+BIOPHYSICAL CALIBRATION — I_background=800pA
+---------------------------------------------
+LIF threshold crossing requires:
+  I > (V_peak - E_L) × g_L = (20 - (-70)) × 10 = 900 pA
+
+CAdEx crosses threshold via its exponential depolarization term
+(delta_T * exp((V - V_T)/delta_T)) which activates well below V_peak,
+effectively requiring ~200-300pA. LIF has no such nonlinearity.
+
+Setting I_background=800pA puts LIF close to threshold so that
+synaptic input (~27-160pA) can push individual neurons over the edge
+selectively. Homeostasis regulates the exact rate to r_target via V_T
+and synaptic scaling once training begins.
+
+STDP amplitudes: same as CAdEx (Pfister & Gerstner 2006 Table 1).
+The ablation isolates neuron model contribution, not STDP differences.
 """
 
 import os
@@ -22,8 +42,12 @@ class LIFNeuron(bp.dyn.NeuDyn):
     def __init__(self, size, C_m=200., g_L=10., E_L=-70.,
                  V_peak=20., V_r=-65., dt=0.1, **kwargs):
         super().__init__(size=size, **kwargs)
-        self.C_m=C_m; self.g_L=g_L; self.E_L=E_L
-        self.V_peak=V_peak; self.V_r=V_r; self.dt=dt
+        self.C_m    = C_m
+        self.g_L    = g_L
+        self.E_L    = E_L
+        self.V_peak = V_peak
+        self.V_r    = V_r
+        self.dt     = dt
         self.V     = bm.Variable(bm.full(size, E_L))
         self.spike = bm.Variable(bm.zeros(size, dtype=bool))
         self.input = bm.Variable(bm.zeros(size))
@@ -32,8 +56,8 @@ class LIFNeuron(bp.dyn.NeuDyn):
     def update(self, x=None):
         I_ext = self.input.value if x is None else x
         V     = self.V.value
-        dV    = (-self.g_L*(V-self.E_L) + I_ext) / self.C_m
-        V_new = V + dV*self.dt
+        dV    = (-self.g_L * (V - self.E_L) + I_ext) / self.C_m
+        V_new = V + dV * self.dt
         spike = V_new >= self.V_peak
         V_new = bm.where(spike, self.V_r, V_new)
         self.V.value     = V_new
@@ -43,9 +67,17 @@ class LIFNeuron(bp.dyn.NeuDyn):
 
 class LIFNetwork(OIModel):
 
-    def __init__(self, n_input=100, n_output=50, conn_prob=1.0,
-                 dt=0.1, I_background=150.0, plasticity=True,
-                 homeostasis=True, seed=0):
+    def __init__(
+        self,
+        n_input: int        = 100,
+        n_output: int       = 50,
+        conn_prob: float    = 1.0,
+        dt: float           = 0.1,
+        I_background: float = 800.0,
+        plasticity: bool    = True,
+        homeostasis: bool   = True,
+        seed: int           = 0,
+    ):
         np.random.seed(seed)
         self._n_input  = n_input
         self._n_output = n_output
@@ -57,6 +89,7 @@ class LIFNetwork(OIModel):
 
         conn = (np.ones((n_input, n_output), dtype=bool)
                 if conn_prob >= 1.0 else {'prob': conn_prob})
+
         self.synapse = TripletSTDPSynapse(
             pre=self.input_pop, post=self.output_pop,
             conn=conn, w_init=0.3, g_max=3.0, tau_syn=15.0,
@@ -87,6 +120,15 @@ class LIFNetwork(OIModel):
         self.homeo.alpha        = 1.0 - np.exp(-1.0 / 5.0)
         self.homeo.enabled      = enabled
 
+    def configure_stdp(
+        self,
+        A2_plus: float  = 0.006,
+        A3_plus: float  = 0.009,
+        A2_minus: float = 0.003,
+    ) -> None:
+        self.synapse.configure_stdp(A2_plus, A3_plus, A2_minus)
+        self.rec_synapse.configure_stdp(A2_plus, A3_plus, A2_minus)
+
     def configure_eligibility_trace(self, enabled=False, tau_e=1000.0):
         self.synapse.use_eligibility_trace     = enabled
         self.synapse.tau_e                     = tau_e
@@ -95,10 +137,6 @@ class LIFNetwork(OIModel):
         if not enabled:
             self.synapse.reset_eligibility()
             self.rec_synapse.reset_eligibility()
-
-    def configure_stdp(self, A2_plus=0.006, A3_plus=0.009, A2_minus=0.003):
-        self.synapse.configure_stdp(A2_plus, A3_plus, A2_minus)
-        self.rec_synapse.configure_stdp(A2_plus, A3_plus, A2_minus)
 
     @property
     def n_input(self):  return self._n_input
@@ -127,14 +165,14 @@ class LIFNetwork(OIModel):
         self._trial_spike_counts[:] = 0.0
 
     def step(self, stimulus: Stimulus) -> ModelState:
-        I_input = stimulus.current + stimulus.spike_train*100.0
+        I_input = stimulus.current + stimulus.spike_train * 100.0
         self.input_pop.update(x=bm.array(I_input, dtype=bm.float32))
         S_pre  = self.input_pop.spike.value.astype(bm.float32)
         S_post = self.output_pop.spike.value.astype(bm.float32)
         I_syn  = self.synapse.update(S_pre, S_post, self.output_pop.V.value)
         I_rec  = self.rec_synapse.update(S_post, S_post, self.output_pop.V.value)
         mean_activity = jnp.mean(S_post)
-        I_inh   = -self._inhibition_strength*mean_activity*bm.ones(self._n_output)
+        I_inh   = -self._inhibition_strength * mean_activity * bm.ones(self._n_output)
         I_total = bm.full(self._n_output, self._I_bg) + I_syn + I_rec + I_inh
         self.output_pop.update(x=I_total)
         self._trial_spike_counts += np.array(
@@ -175,3 +213,7 @@ class LIFNetwork(OIModel):
     @property
     def weight_stats(self):
         return self.synapse.weight_stats
+
+    @property
+    def homeo_stats(self):
+        return self.homeo.stats

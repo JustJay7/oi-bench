@@ -11,17 +11,17 @@ Usage:
     python run.py --smoke                  # minimal trial counts (fast)
     python run.py --model_seed 42          # reproducibility seed
 
-STDP per-task configuration:
-    T1-T3, T5-T6: full amplitudes A2+=0.006, A3+=0.009 (Pfister & Gerstner 2006)
-    T4: halved amplitudes A2+=0.003, A3+=0.005
-        T4 uses dopamine-gated eligibility traces — each ITI the dopamine
-        signal gates accumulated STDP traces into weight changes. With full
-        amplitudes, this drives weights to saturation within 10 trials.
-        Halved amplitudes give the same learning direction but at half speed,
-        keeping weights in a productive range over 150 trials.
+MODEL-SPECIFIC STDP AMPLITUDES
+-------------------------------
+CAdEx: A2_plus=0.006 (Pfister & Gerstner 2006 Table 1)
+LIF:   A2_plus=0.001 (6× smaller)
 
-T4 curriculum tol_start restored to 1.0 now that STDP amplitudes are
-halved — the reduced amplitude prevents saturation even with full tolerance.
+LIF has no adaptation current, no calcium dynamics, no fractional membrane.
+It fires much more readily than CAdEx under identical STDP drive, causing
+immediate weight saturation at w=1.0 with CAdEx amplitudes. LIF amplitudes
+are scaled down so weights evolve on the same timescale as CAdEx.
+
+LSM: no STDP (fixed weights), configure_stdp is a no-op.
 """
 
 import os
@@ -61,18 +61,29 @@ HOMEO_CONFIG = {
 }
 
 # ------------------------------------------------------------------
-# Per-task STDP amplitude configuration
-# T4 uses halved amplitudes to prevent weight saturation from
-# dopamine-gated eligibility traces over 150 trials.
-# All other tasks use Pfister & Gerstner (2006) Table 1 defaults.
+# Per-model, per-task STDP amplitude configuration
+# CAdEx: Pfister & Gerstner (2006) Table 1 defaults
+# LIF:   6× smaller — LIF fires more readily, needs scaled-down STDP
+# LSM:   no STDP (configure_stdp is a no-op)
 # ------------------------------------------------------------------
 STDP_CONFIG = {
-    'T1': {'A2_plus': 0.006, 'A3_plus': 0.009, 'A2_minus': 0.003},
-    'T2': {'A2_plus': 0.006, 'A3_plus': 0.009, 'A2_minus': 0.003},
-    'T3': {'A2_plus': 0.006, 'A3_plus': 0.009, 'A2_minus': 0.003},
-    'T4': {'A2_plus': 0.003, 'A3_plus': 0.005, 'A2_minus': 0.003},
-    'T5': {'A2_plus': 0.006, 'A3_plus': 0.009, 'A2_minus': 0.003},
-    'T6': {'A2_plus': 0.006, 'A3_plus': 0.009, 'A2_minus': 0.003},
+    'cadex': {
+        'T1': {'A2_plus': 0.006, 'A3_plus': 0.009, 'A2_minus': 0.003},
+        'T2': {'A2_plus': 0.006, 'A3_plus': 0.009, 'A2_minus': 0.003},
+        'T3': {'A2_plus': 0.006, 'A3_plus': 0.009, 'A2_minus': 0.003},
+        'T4': {'A2_plus': 0.003, 'A3_plus': 0.005, 'A2_minus': 0.003},
+        'T5': {'A2_plus': 0.006, 'A3_plus': 0.009, 'A2_minus': 0.003},
+        'T6': {'A2_plus': 0.006, 'A3_plus': 0.009, 'A2_minus': 0.003},
+    },
+    'lif': {
+        'T1': {'A2_plus': 0.001, 'A3_plus': 0.002, 'A2_minus': 0.001},
+        'T2': {'A2_plus': 0.001, 'A3_plus': 0.002, 'A2_minus': 0.001},
+        'T3': {'A2_plus': 0.001, 'A3_plus': 0.002, 'A2_minus': 0.001},
+        'T4': {'A2_plus': 0.0005,'A3_plus': 0.001, 'A2_minus': 0.001},
+        'T5': {'A2_plus': 0.001, 'A3_plus': 0.002, 'A2_minus': 0.001},
+        'T6': {'A2_plus': 0.001, 'A3_plus': 0.002, 'A2_minus': 0.001},
+    },
+    'lsm': {t: {} for t in ['T1','T2','T3','T4','T5','T6']},
 }
 
 # ------------------------------------------------------------------
@@ -85,7 +96,6 @@ ELIGIBILITY_CONFIG = {
 
 # ------------------------------------------------------------------
 # T4 dopamine modulator with curriculum tolerance
-# tol_start=1.0: restored now that T4 uses halved STDP amplitudes
 # ------------------------------------------------------------------
 def make_t4_modulator_fn(n_trials: int = 150):
     state = {'trial_count': 0}
@@ -214,7 +224,6 @@ def main():
             print(f"\n[{run_count}/{n_runs}] {model_name} × {task_name}")
             print(f"  Started: {datetime.now().strftime('%H:%M:%S')}")
 
-            # Configure homeostasis
             if hasattr(model, 'configure_homeostasis') and task_name in HOMEO_CONFIG:
                 cfg = HOMEO_CONFIG[task_name]
                 model.configure_homeostasis(
@@ -223,11 +232,12 @@ def main():
                     enabled      = cfg.get('enabled', True),
                 )
 
-            # Configure STDP amplitudes
-            if hasattr(model, 'configure_stdp') and task_name in STDP_CONFIG:
-                model.configure_stdp(**STDP_CONFIG[task_name])
+            # Model-specific STDP config
+            if hasattr(model, 'configure_stdp'):
+                stdp_cfg = STDP_CONFIG.get(model_name, {}).get(task_name, {})
+                if stdp_cfg:
+                    model.configure_stdp(**stdp_cfg)
 
-            # Configure eligibility trace
             if hasattr(model, 'configure_eligibility_trace'):
                 if task_name in ELIGIBILITY_CONFIG:
                     ecfg = ELIGIBILITY_CONFIG[task_name]

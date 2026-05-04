@@ -269,9 +269,10 @@ class BenchmarkRunner:
             print(f"  dt={model.dt}ms")
             print(f"{'='*60}\n")
 
-        I_bg     = (bm.full(model.n_output, 150.0, dtype=bm.float32)
+        _i_bg    = getattr(model, '_I_bg', 150.0)
+        I_bg     = (bm.full(model.n_output, _i_bg, dtype=bm.float32)
                     if hasattr(model, 'output_pop') else None)
-        I_bg_val = (jnp.full(model.n_output, 150.0)
+        I_bg_val = (jnp.full(model.n_output, _i_bg)
                     if I_bg is not None else None)
 
         for trial_id in range(task.n_trials):
@@ -357,7 +358,7 @@ class BenchmarkRunner:
                                      e_ff=e_ff_final, e_rec=e_rec_final)
                 else:
                     model.post_trial(trial_id, [], modulator=modulator)
-                    
+
             result = TrialResult(
                 trial_id    = trial_id,
                 correct     = bool(scores.get('accuracy', 0.0) >= 0.5)

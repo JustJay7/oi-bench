@@ -1,0 +1,15 @@
+{
+  "run_id": "full_lsm_v1",
+  "timestamp": "2026-05-03T23:06:22.493623",
+  "git_hash": "92259ad",
+  "runs": [
+    {
+      "key": "lsm__T1_ClassicalConditioning",
+      "model_name": "lsm",
+      "task_name": "T1_ClassicalConditioning",
+      "learning_index": 0.4365,
+      "n_trials": 200,
+      "total_wall_time_min": 137.8613358815511
+    }
+  ]
+}
