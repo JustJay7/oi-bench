@@ -98,22 +98,23 @@ ELIGIBILITY_CONFIG = {
 # T4 dopamine modulator with curriculum tolerance
 # ------------------------------------------------------------------
 def make_t4_modulator_fn(n_trials: int = 150):
+    """
+    Soft exponential dopamine curriculum (Schultz 1997).
+    da = exp(-weber_error / temperature)
+    Temperature anneals 2.0 -> 0.3 over training.
+    Always nonzero — no hard cutoff that freezes learning.
+    """
     state = {'trial_count': 0}
-
     def t4_modulator_fn(trial_id: int, scores: dict) -> float:
         weber_error = scores.get('weber_error', 1.0)
         t           = state['trial_count']
         state['trial_count'] += 1
-
-        tol_start = 1.0
-        tol_end   = 0.15
-        progress  = min(1.0, t / max(n_trials - 1, 1))
-        tolerance = tol_start - (tol_start - tol_end) * progress
-
-        if weber_error <= tolerance:
-            return float(1.0 - weber_error / tolerance)
-        return 0.0
-
+        progress    = min(1.0, t / max(n_trials - 1, 1))
+        temp_start  = 2.0
+        temp_end    = 0.3
+        temperature = temp_start * (temp_end / temp_start) ** progress
+        da = float(np.exp(-weber_error / temperature))
+        return da
     return t4_modulator_fn
 
 
