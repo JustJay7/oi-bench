@@ -1,0 +1,15 @@
+{
+  "run_id": "smoke_lif_t4_fix",
+  "timestamp": "2026-05-07T19:41:46.675675",
+  "git_hash": "d5454f5",
+  "runs": [
+    {
+      "key": "lif__T4_IntervalTiming",
+      "model_name": "lif",
+      "task_name": "T4_IntervalTiming",
+      "learning_index": 0.06324000000000002,
+      "n_trials": 15,
+      "total_wall_time_min": 0.5330096205075582
+    }
+  ]
+}

@@ -199,7 +199,11 @@ class BenchmarkRunner:
             else:
                 dV_out = (-op.g_L*(V_out-op.E_L)+I_total)/op.C_m
                 V_out_n = V_out+dV_out*dt
-                spike_out = V_out_n >= op.V_peak
+                # LIF uses V_T (adaptive threshold) not V_peak.
+                # ref_count refractory: elevate threshold by 1000mV when refractory.
+                ref   = jnp.array(op.ref_count.value) if hasattr(op, 'ref_count') else jnp.zeros(n_out)
+                V_thr = V_T + (ref > 0.0).astype(jnp.float32) * 1000.0
+                spike_out = V_out_n >= V_thr
                 V_out_n = jnp.where(spike_out, op.V_r, V_out_n)
                 w_out_n = w_out; Ca_out_n = Ca_out
 
