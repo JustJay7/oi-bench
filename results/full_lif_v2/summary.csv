@@ -1,0 +1,7 @@
+model,task,learning_index,convergence_trial,asymptotic_performance,sample_efficiency,wall_time_min
+lif,T1_ClassicalConditioning,0.9865,9,1.0000,1.0000,3.1
+lif,T2_PatternCompletion,0.8840,9,0.8000,0.9267,1.2
+lif,T3_SequencePrediction,0.9730,9,1.0000,1.0000,3.0
+lif,T4_IntervalTiming,0.6547,106,1.0000,0.3333,5.1
+lif,T5_DelayMatchToSample,0.6460,20,0.5500,0.5050,6.2
+lif,T6_NBack,0.6497,16,0.5125,0.5275,7.8

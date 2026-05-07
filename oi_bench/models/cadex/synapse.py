@@ -63,6 +63,7 @@ class TripletSTDPSynapse(bp.Projection):
         w_init                   = 'random',
         plasticity: bool         = True,
         modulator: float         = 1.0,
+        soft_bounds: bool        = False,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -85,6 +86,7 @@ class TripletSTDPSynapse(bp.Projection):
         self.w_max     = w_max
         self.plasticity  = plasticity
         self.modulator   = modulator
+        self.soft_bounds = soft_bounds
         self.dt = pre.dt
 
         n_pre  = pre.num
@@ -162,6 +164,13 @@ class TripletSTDPSynapse(bp.Projection):
         ltp_factor = self.A2_plus + self.A3_plus * o2
         dW_ltp     = jnp.outer(r1, S_post * ltp_factor)
         dW_ltd     = self.A2_minus * jnp.outer(S_pre, o1)
+        # Soft weight bounds (van Rossum et al. 2000; Gütig et al. 2003):
+        # LTP scales with (w_max - W), LTD scales with (W - w_min).
+        # Only applied for LIF — CAdEx uses hard bounds (soft_bounds=False).
+        if self.soft_bounds:
+            W_cur  = self.W.value
+            dW_ltp = dW_ltp * (self.w_max - W_cur)
+            dW_ltd = dW_ltd * (W_cur - self.w_min)
         dW         = (dW_ltp - dW_ltd) * self.mask * self.modulator * p_scale
         self.W.value = jnp.clip(
             self.W.value + dW, self.w_min, self.w_max)

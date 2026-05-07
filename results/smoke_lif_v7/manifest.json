@@ -1,0 +1,55 @@
+{
+  "run_id": "smoke_lif_v7",
+  "timestamp": "2026-05-07T18:36:55.871499",
+  "git_hash": "d13aad9",
+  "runs": [
+    {
+      "key": "lif__T1_ClassicalConditioning",
+      "model_name": "lif",
+      "task_name": "T1_ClassicalConditioning",
+      "learning_index": 0.19000000000000003,
+      "n_trials": 10,
+      "total_wall_time_min": 0.15314948956171673
+    },
+    {
+      "key": "lif__T2_PatternCompletion",
+      "model_name": "lif",
+      "task_name": "T2_PatternCompletion",
+      "learning_index": 0.6433333333333333,
+      "n_trials": 45,
+      "total_wall_time_min": 0.37454345226287844
+    },
+    {
+      "key": "lif__T3_SequencePrediction",
+      "model_name": "lif",
+      "task_name": "T3_SequencePrediction",
+      "learning_index": 0.0,
+      "n_trials": 15,
+      "total_wall_time_min": 0.15183136463165284
+    },
+    {
+      "key": "lif__T4_IntervalTiming",
+      "model_name": "lif",
+      "task_name": "T4_IntervalTiming",
+      "learning_index": 0.5666666666666667,
+      "n_trials": 15,
+      "total_wall_time_min": 0.5223685304323832
+    },
+    {
+      "key": "lif__T5_DelayMatchToSample",
+      "model_name": "lif",
+      "task_name": "T5_DelayMatchToSample",
+      "learning_index": 0.06,
+      "n_trials": 10,
+      "total_wall_time_min": 0.3168723146120707
+    },
+    {
+      "key": "lif__T6_NBack",
+      "model_name": "lif",
+      "task_name": "T6_NBack",
+      "learning_index": 0.67,
+      "n_trials": 20,
+      "total_wall_time_min": 0.3810740947723389
+    }
+  ]
+}
