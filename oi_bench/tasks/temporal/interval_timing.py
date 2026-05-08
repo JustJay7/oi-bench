@@ -69,6 +69,8 @@ class IntervalTimingTask(BenchmarkTask):
         cue_fraction: float              = 0.3,
         tonic_output_current: float      = 75.0,
         dt: float                        = 0.1,
+        n_timer_groups: int              = 10,
+        n_neurons_per_group: int         = 3,
     ):
         self._intervals            = target_intervals_ms
         self._n_per_interval       = n_trials_per_interval
@@ -79,10 +81,16 @@ class IntervalTimingTask(BenchmarkTask):
         self._dt                   = dt
         self._max_interval         = max(target_intervals_ms)
         self._trial_dur            = cue_duration_ms + self._max_interval + 200.0
+        self._n_timer_groups       = n_timer_groups
+        self._n_per_group          = n_neurons_per_group
+        self._n_timer_neurons      = n_timer_groups * n_neurons_per_group
 
         self._n_input          = None
         self._n_output         = None
         self._cue_neurons      = None
+        self._context_neurons  = None
+        self._timer_neurons    = None
+        self._timer_fire_times = None
         self._exclusion_ms     = None   # derived from model.synapse.tau_syn
         self._burst_threshold  = None   # derived from background calibration
         self._exclusion_step   = None
@@ -117,7 +125,7 @@ class IntervalTimingTask(BenchmarkTask):
 
         # --- Derive exclusion window from model's actual tau_syn ---
         tau_syn = getattr(getattr(model, 'synapse', None), 'tau_syn', 15.0)
-        self._exclusion_ms   = self._cue_dur + 3.0 * tau_syn
+        self._exclusion_ms   = self._cue_dur + 7.0 * tau_syn
         self._exclusion_step = int(self._exclusion_ms / self._dt)
 
         # --- Derive burst threshold from background firing statistics ---
@@ -126,13 +134,59 @@ class IntervalTimingTask(BenchmarkTask):
         # Threshold: background peak + 2 neurons (floor 3 for silent networks)
         self._burst_threshold = max(1, int(bg_peak) + 1)
 
+        # Timer chain: evenly spaced groups over [cue_dur, max_interval]
+        # Occupies last n_timer_neurons slots of input population
+        self._timer_neurons = np.arange(
+            self._n_input - self._n_timer_neurons, self._n_input)
+        if self._n_timer_groups > 1:
+            self._timer_fire_times = [
+                self._cue_dur + k * (self._max_interval / (self._n_timer_groups - 1))
+                for k in range(self._n_timer_groups)
+            ]
+        else:
+            self._timer_fire_times = [self._cue_dur]
+
+        # Context neurons: 10 per interval, slots 30-59
+        # Fire during cue to uniquely identify which interval is being trained
+        n_ctx = 10
+        self._context_neurons = [
+            np.arange(30 + i * n_ctx, 30 + (i + 1) * n_ctx)
+            for i in range(len(self._intervals))
+        ]
+
+        # Pre-wire timer→output connections with block-diagonal structure.
+        # Timer group k strongly drives output neurons k*(n_out//n_groups)
+        # to (k+1)*(n_out//n_groups). All other timer→output weights = 0.
+        # This gives the network a structured temporal basis to learn from —
+        # STDP + dopamine only needs to learn WHICH output block to disinhibit,
+        # not build timing from scratch.
+        if hasattr(model, 'synapse') and hasattr(model.synapse, 'W'):
+            import brainpy.math as bm_local
+            W = np.array(model.synapse.W.value)
+            n_out_per_grp = max(1, self._n_output // self._n_timer_groups)
+            timer_start   = self._n_input - self._n_timer_neurons
+            # Zero out all timer→output connections first
+            W[timer_start:, :] = 0.0
+            # Set block-diagonal strong weights
+            for k in range(self._n_timer_groups):
+                pre_start  = timer_start + k * self._n_per_group
+                pre_end    = pre_start + self._n_per_group
+                post_start = k * n_out_per_grp
+                post_end   = min(post_start + n_out_per_grp, self._n_output)
+                W[pre_start:pre_end, post_start:post_end] = 0.8
+            model.synapse.W.value = bm_local.array(W, dtype=bm_local.float32)
+            print(f"  T4: pre-wired {self._n_timer_groups} timer→output blocks "
+                  f"(w=0.8, {self._n_per_group}pre × {n_out_per_grp}post each)")
+
         print(f"  T4 setup: intervals={self._intervals}ms | "
               f"{self._n_per_interval} trials each | "
               f"tonic={self._tonic_output_current}pA | "
               f"tau_syn={tau_syn:.1f}ms | "
               f"exclusion={self._exclusion_ms:.0f}ms | "
               f"bg_peak={bg_peak} | "
-              f"burst_threshold={self._burst_threshold}")
+              f"burst_threshold={self._burst_threshold} | "
+              f"timer={self._n_timer_groups}grp×{self._n_per_group}neu | "
+              f"context={len(self._intervals)}grp×{n_ctx}neu")
 
     def _calibrate_background(self, model: OIModel) -> int:
         """
@@ -172,25 +226,62 @@ class IntervalTimingTask(BenchmarkTask):
         return self._intervals[interval_idx % len(self._intervals)]
 
     def generate_trial(self, trial_id: int, rng_key) -> List[Stimulus]:
-        n_steps = int(self._trial_dur / self._dt)
-        stimuli = []
+        n_steps    = int(self._trial_dur / self._dt)
+        fire_times = self._timer_fire_times
+        stimuli    = []
         for step in range(n_steps):
-            t_ms    = step * self._dt
-            current = np.zeros(self._n_input, dtype=np.float32)
+            t_ms        = step * self._dt
+            current     = np.zeros(self._n_input, dtype=np.float32)
+            spike_train = np.zeros(self._n_input, dtype=np.float32)
             if t_ms < self._cue_dur:
                 current[self._cue_neurons] = self._cue_current
+                interval_idx = trial_id // self._n_per_interval
+                if (self._context_neurons is not None and
+                        interval_idx < len(self._context_neurons)):
+                    current[self._context_neurons[interval_idx]] = self._cue_current
+            # Inject timer group k spike at its designated fire time
+            for k, t_fire in enumerate(fire_times):
+                if abs(t_ms - t_fire) < self._dt * 0.5:
+                    start = self._n_input - self._n_timer_neurons + k * self._n_per_group
+                    end   = start + self._n_per_group
+                    spike_train[start:end] = 1.0
             stimuli.append(Stimulus(
                 current     = current,
-                spike_train = np.zeros(self._n_input, dtype=np.float32),
+                spike_train = spike_train,
                 t           = t_ms,
                 label       = trial_id // self._n_per_interval,
             ))
         return stimuli
 
     def us_current_for_step(self, t_ms: float, trial_id: int) -> np.ndarray:
-        """75pA tonic drive to output population throughout full trial."""
-        return np.full(self._n_output, self._tonic_output_current,
-                       dtype=np.float32)
+        """
+        Tonic drive + timer pulse directly to output population.
+
+        Each timer group k owns (n_output // n_timer_groups) output neurons.
+        At t_fire_k, those neurons receive a strong 300pA pulse for 10ms,
+        acting as a direct temporal marker signal. The remaining output
+        neurons receive only the 75pA tonic baseline.
+
+        This directly drives output activity at each timer group's fire time,
+        giving STDP a clear signal to associate with T_target via dopamine.
+        """
+        current = np.full(self._n_output, self._tonic_output_current,
+                          dtype=np.float32)
+        if self._timer_fire_times is None:
+            return current
+
+        neurons_per_group = max(1, self._n_output // self._n_timer_groups)
+        pulse_duration_ms = 10.0
+        pulse_current     = 300.0  # pA — strong enough to drive selective firing
+
+        for k, t_fire in enumerate(self._timer_fire_times):
+            if t_fire <= t_ms < t_fire + pulse_duration_ms:
+                start = k * neurons_per_group
+                end   = min(start + neurons_per_group, self._n_output)
+                current[start:end] = pulse_current
+                break
+
+        return current
 
     def compute_score(
         self,

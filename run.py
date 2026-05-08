@@ -90,7 +90,7 @@ STDP_CONFIG = {
 # T4 eligibility trace configuration
 # ------------------------------------------------------------------
 ELIGIBILITY_CONFIG = {
-    'T4': {'enabled': True, 'tau_e': 1000.0},
+    'T4': {'enabled': True, 'tau_e': 50.0},
 }
 
 
