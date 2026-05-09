@@ -213,17 +213,18 @@ class TripletSTDPSynapse(bp.Projection):
         return r1_new, r2_new, o1_new, o2_new, e_new, g_new, I_syn
 
     def apply_neuromodulation(
-        self, da_level: float, e: jnp.ndarray = None
+        self, da_level: float, e: jnp.ndarray = None,
+        lr: float = 0.05,
     ) -> None:
         if not self.plasticity:
             return
         if abs(da_level) < 1e-8:
             return
         e_use = e if e is not None else self.e.value
-        dW    = da_level * e_use * self.mask_jax
+        dW    = da_level * lr * e_use * self.mask_jax
         self.W.value = jnp.clip(
             self.W.value + dW, self.w_min, self.w_max)
-
+                        
     def reset_eligibility(self) -> None:
         self.e.value = bm.zeros_like(self.e.value)
 

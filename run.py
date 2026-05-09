@@ -11,17 +11,29 @@ Usage:
     python run.py --smoke                  # minimal trial counts (fast)
     python run.py --model_seed 42          # reproducibility seed
 
+T4 DISCRETE POPULATION PACKET ARCHITECTURE
+-------------------------------------------
+Input population divided into 10 sequential groups × 10 neurons.
+Each group fires for 30ms at a fixed delay post-cue, covering
+[0, 1000ms] uniformly (delta_t=100ms per group).
+
+T4 model uses I_background=0 (vs 150pA for other tasks):
+  - CAdEx fires at ~600pA from rest
+  - With I_bg=150pA, spontaneous output firing drowns group signal
+  - With I_bg=0 and I_us=75pA, output is silent between groups
+  - Group activation (3000pA → I_syn ~625pA) reliably crosses threshold
+  - Result: clean temporal code with zero false positives
+
+Three-factor STDP + dopamine (Izhikevich 2007):
+  - Eligibility trace accumulates during group → output co-activation
+  - Dopamine gates weight update only for rewarded bursts
+  - Over trials, T_target group synapses are selectively potentiated
+
 MODEL-SPECIFIC STDP AMPLITUDES
 -------------------------------
 CAdEx: A2_plus=0.006 (Pfister & Gerstner 2006 Table 1)
-LIF:   A2_plus=0.001 (6× smaller)
-
-LIF has no adaptation current, no calcium dynamics, no fractional membrane.
-It fires much more readily than CAdEx under identical STDP drive, causing
-immediate weight saturation at w=1.0 with CAdEx amplitudes. LIF amplitudes
-are scaled down so weights evolve on the same timescale as CAdEx.
-
-LSM: no STDP (fixed weights), configure_stdp is a no-op.
+LIF:   A2_plus=0.001 (6× smaller — LIF fires more readily)
+LSM:   no STDP
 """
 
 import os
@@ -62,64 +74,59 @@ HOMEO_CONFIG = {
 
 # ------------------------------------------------------------------
 # Per-model, per-task STDP amplitude configuration
-# CAdEx: Pfister & Gerstner (2006) Table 1 defaults
-# LIF:   6× smaller — LIF fires more readily, needs scaled-down STDP
-# LSM:   no STDP (configure_stdp is a no-op)
 # ------------------------------------------------------------------
 STDP_CONFIG = {
     'cadex': {
         'T1': {'A2_plus': 0.006, 'A3_plus': 0.009, 'A2_minus': 0.003},
         'T2': {'A2_plus': 0.006, 'A3_plus': 0.009, 'A2_minus': 0.003},
         'T3': {'A2_plus': 0.006, 'A3_plus': 0.009, 'A2_minus': 0.003},
-        'T4': {'A2_plus': 0.003, 'A3_plus': 0.005, 'A2_minus': 0.003},
+        'T4': {'A2_plus': 0.002,  'A3_plus': 0.003,  'A2_minus': 0.002},
         'T5': {'A2_plus': 0.006, 'A3_plus': 0.009, 'A2_minus': 0.003},
         'T6': {'A2_plus': 0.006, 'A3_plus': 0.009, 'A2_minus': 0.003},
     },
     'lif': {
-        'T1': {'A2_plus': 0.0003, 'A3_plus': 0.0005, 'A2_minus': 0.0003},
-        'T2': {'A2_plus': 0.0003, 'A3_plus': 0.0005, 'A2_minus': 0.0003},
-        'T3': {'A2_plus': 0.0003, 'A3_plus': 0.0005, 'A2_minus': 0.0003},
-        'T4': {'A2_plus': 0.00015,'A3_plus': 0.00025,'A2_minus': 0.0003},
-        'T5': {'A2_plus': 0.0003, 'A3_plus': 0.0005, 'A2_minus': 0.0003},
-        'T6': {'A2_plus': 0.0003, 'A3_plus': 0.0005, 'A2_minus': 0.0003},
+        'T1': {'A2_plus': 0.001, 'A3_plus': 0.002, 'A2_minus': 0.001},
+        'T2': {'A2_plus': 0.001, 'A3_plus': 0.002, 'A2_minus': 0.001},
+        'T3': {'A2_plus': 0.001, 'A3_plus': 0.002, 'A2_minus': 0.001},
+        'T4': {'A2_plus': 0.001, 'A3_plus': 0.002, 'A2_minus': 0.001},
+        'T5': {'A2_plus': 0.001, 'A3_plus': 0.002, 'A2_minus': 0.001},
+        'T6': {'A2_plus': 0.001, 'A3_plus': 0.002, 'A2_minus': 0.001},
     },
-    'lsm': {t: {} for t in ['T1','T2','T3','T4','T5','T6']},
+    'lsm': {t: {} for t in ['T1', 'T2', 'T3', 'T4', 'T5', 'T6']},
 }
 
 # ------------------------------------------------------------------
-# T4 eligibility trace configuration
+# T4 eligibility trace — tau_e=100ms
+# delta_t=100ms per group, tau_e=100ms: only the currently active
+# group and brief aftermath carry a nonzero trace. Dopamine selectively
+# potentiates those synapses.
 # ------------------------------------------------------------------
 ELIGIBILITY_CONFIG = {
-    'T4': {'enabled': True, 'tau_e': 50.0},
+    'T4': {'enabled': True, 'tau_e': 100.0},
 }
 
 
 # ------------------------------------------------------------------
-# T4 dopamine modulator with curriculum tolerance
+# T4 dopamine modulator — weber_error curriculum
 # ------------------------------------------------------------------
 def make_t4_modulator_fn(n_trials: int = 150):
     """
-    Soft exponential dopamine curriculum (Schultz 1997).
-    da = exp(-weber_error / temperature)
-    Temperature anneals 2.0 -> 0.3 over training.
-    Always nonzero — no hard cutoff that freezes learning.
+    Dopamine modulator for T4.
+
+    Full reward when burst lands within weber_error < 0.3 of T_target.
+    Zero otherwise — no negative signal needed because the curriculum
+    naturally restricts which group drives output in expression phase.
     """
-    state = {'trial_count': 0}
     def t4_modulator_fn(trial_id: int, scores: dict) -> float:
         weber_error = scores.get('weber_error', 1.0)
-        t           = state['trial_count']
-        state['trial_count'] += 1
-        progress    = min(1.0, t / max(n_trials - 1, 1))
-        temp_start  = 2.0
-        temp_end    = 0.3
-        temperature = temp_start * (temp_end / temp_start) ** progress
-        da = float(np.exp(-weber_error / temperature))
-        return da
+        if weber_error < 0.5:
+            return float(1.0 - weber_error / 0.5)
+        return 0.0
     return t4_modulator_fn
 
 
 # ------------------------------------------------------------------
-# Model registry
+# Standard model registry (T1-T3, T5-T6)
 # ------------------------------------------------------------------
 def build_models(seed: int = 0) -> dict:
     return {
@@ -133,6 +140,39 @@ def build_models(seed: int = 0) -> dict:
             n_input=100, n_output=50,
             dt=0.1,
             plasticity=True, homeostasis=True,
+            seed=seed,
+        ),
+        'lsm': LiquidStateMachine(
+            n_input=100, n_reservoir=200, n_output=50,
+            dt=0.1, seed=seed,
+        ),
+    }
+
+
+# ------------------------------------------------------------------
+# T4-specific model registry
+# I_background=0: eliminates spontaneous output firing so group
+# activations produce clean detectable bursts above silent baseline.
+# conn_prob=1.0: all-to-all ensures every output neuron receives
+# the full group signal reliably.
+# homeostasis=False: homeostasis would fight the sparse firing pattern.
+# ------------------------------------------------------------------
+def build_t4_models(seed: int = 0) -> dict:
+    return {
+        'cadex': CAdExNetwork(
+            n_input=100, n_output=50,
+            alpha=0.85, conn_prob=1.0, dt=0.1,
+            I_background=0.0,
+            plasticity=True, homeostasis=False,
+            w_init=0.8,
+            seed=seed,
+        ),
+        'lif': LIFNetwork(
+            n_input=100, n_output=50,
+            conn_prob=1.0, dt=0.1,
+            I_background=0.0,
+            plasticity=True, homeostasis=False,
+            w_init=0.8,
             seed=seed,
         ),
         'lsm': LiquidStateMachine(
@@ -186,8 +226,9 @@ def main():
     parser.add_argument('--record_traces', action='store_true')
     args = parser.parse_args()
 
-    all_models = build_models(seed=args.model_seed)
-    all_tasks  = build_tasks(smoke=args.smoke)
+    all_models    = build_models(seed=args.model_seed)
+    all_t4_models = build_t4_models(seed=args.model_seed)
+    all_tasks     = build_tasks(smoke=args.smoke)
 
     models_to_run = {k: v for k, v in all_models.items()
                      if args.models is None or k in args.models}
@@ -219,11 +260,15 @@ def main():
     run_count = 0
     t_start   = time.time()
 
-    for model_name, model in models_to_run.items():
+    for model_name in models_to_run:
         for task_name, task in tasks_to_run.items():
             run_count += 1
             print(f"\n[{run_count}/{n_runs}] {model_name} × {task_name}")
             print(f"  Started: {datetime.now().strftime('%H:%M:%S')}")
+
+            # T4 uses dedicated model with I_background=0
+            model = all_t4_models[model_name] if task_name == 'T4' \
+                else all_models[model_name]
 
             if hasattr(model, 'configure_homeostasis') and task_name in HOMEO_CONFIG:
                 cfg = HOMEO_CONFIG[task_name]
@@ -233,7 +278,6 @@ def main():
                     enabled      = cfg.get('enabled', True),
                 )
 
-            # Model-specific STDP config
             if hasattr(model, 'configure_stdp'):
                 stdp_cfg = STDP_CONFIG.get(model_name, {}).get(task_name, {})
                 if stdp_cfg:
@@ -249,11 +293,10 @@ def main():
                 else:
                     model.configure_eligibility_trace(enabled=False)
 
+            modulator_fn = None
             if task_name == 'T4':
                 n_t4_trials  = len(task._intervals) * task._n_per_interval
                 modulator_fn = make_t4_modulator_fn(n_trials=n_t4_trials)
-            else:
-                modulator_fn = None
 
             model.reset()
 
@@ -274,7 +317,7 @@ def main():
             jax.clear_caches()
 
             elapsed   = (time.time() - t_start) / 60.0
-            remaining = elapsed / run_count * (n_runs - run_count)
+            remaining = elapsed / run_count * (n_runs - run_count) if run_count else 0
             print(f"  Completed {run_count}/{n_runs} | "
                   f"Elapsed: {elapsed:.1f}min | "
                   f"ETA: {remaining:.1f}min")

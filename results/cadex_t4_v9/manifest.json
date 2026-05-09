@@ -1,0 +1,15 @@
+{
+  "run_id": "cadex_t4_v9",
+  "timestamp": "2026-05-09T02:00:49.138957",
+  "git_hash": "bd648f3",
+  "runs": [
+    {
+      "key": "cadex__T4_IntervalTiming",
+      "model_name": "cadex",
+      "task_name": "T4_IntervalTiming",
+      "learning_index": 0.04650666666666668,
+      "n_trials": 150,
+      "total_wall_time_min": 8.15252916018168
+    }
+  ]
+}

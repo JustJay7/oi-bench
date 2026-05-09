@@ -29,6 +29,7 @@ class CAdExNetwork(OIModel):
         I_background: float = 150.0,
         plasticity: bool    = True,
         homeostasis: bool   = True,
+        w_init: float       = 0.3,
         seed: int           = 0,
     ):
         np.random.seed(seed)
@@ -48,7 +49,7 @@ class CAdExNetwork(OIModel):
                 if conn_prob >= 1.0 else {'prob': conn_prob})
         self.synapse = TripletSTDPSynapse(
             pre=self.input_pop, post=self.output_pop,
-            conn=conn, w_init=0.3, g_max=3.0, tau_syn=15.0,
+            conn=conn, w_init=w_init, g_max=3.0, tau_syn=15.0,
             plasticity=plasticity,
         )
 
@@ -81,15 +82,6 @@ class CAdExNetwork(OIModel):
         A3_plus: float  = 0.009,
         A2_minus: float = 0.003,
     ) -> None:
-        """
-        Update STDP amplitudes for the current task.
-
-        Called from run.py before each task. Allows T4 to use reduced
-        amplitudes (preventing weight saturation from dopamine reward)
-        without affecting other tasks which need full amplitudes.
-
-        Default values restore Pfister & Gerstner (2006) Table 1.
-        """
         self.synapse.configure_stdp(A2_plus, A3_plus, A2_minus)
         self.rec_synapse.configure_stdp(A2_plus, A3_plus, A2_minus)
 
@@ -101,6 +93,10 @@ class CAdExNetwork(OIModel):
         if not enabled:
             self.synapse.reset_eligibility()
             self.rec_synapse.reset_eligibility()
+
+    def disable_timer(self) -> None:
+        """No-op — SBF model does not use a timer population."""
+        pass
 
     @property
     def n_input(self):  return self._n_input
@@ -123,12 +119,12 @@ class CAdExNetwork(OIModel):
         self.synapse.o1.value       = bm.zeros(self._n_output)
         self.synapse.o2.value       = bm.zeros(self._n_output)
         self.synapse.g.value        = bm.zeros((self._n_input,  self._n_output))
-        self.synapse.reset_eligibility()
         self.rec_synapse.r1.value   = bm.zeros(self._n_output)
         self.rec_synapse.r2.value   = bm.zeros(self._n_output)
         self.rec_synapse.o1.value   = bm.zeros(self._n_output)
         self.rec_synapse.o2.value   = bm.zeros(self._n_output)
         self.rec_synapse.g.value    = bm.zeros((self._n_output, self._n_output))
+        self.synapse.reset_eligibility()
         self.rec_synapse.reset_eligibility()
         self._trial_spike_counts[:] = 0.0
 

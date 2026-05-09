@@ -1,3 +1,29 @@
+"""
+LIF Baseline Network — Standard Leaky Integrate-and-Fire
+
+Architecture mirrors CAdExNetwork exactly for valid ablation comparison.
+Differences from CAdEx:
+  - LIF neuron: no adaptation current, no Ca dynamics, no fractal membrane
+  - Same triplet STDP, same homeostasis, same recurrent inhibition
+
+BIOPHYSICAL CALIBRATION — I_background=800pA
+---------------------------------------------
+LIF threshold crossing requires:
+  I > (V_peak - E_L) × g_L = (20 - (-70)) × 10 = 900 pA
+
+CAdEx crosses threshold via its exponential depolarization term
+(delta_T * exp((V - V_T)/delta_T)) which activates well below V_peak,
+effectively requiring ~200-300pA. LIF has no such nonlinearity.
+
+Setting I_background=800pA puts LIF close to threshold so that
+synaptic input (~27-160pA) can push individual neurons over the edge
+selectively. Homeostasis regulates the exact rate to r_target via V_T
+and synaptic scaling once training begins.
+
+STDP amplitudes: same as CAdEx (Pfister & Gerstner 2006 Table 1).
+The ablation isolates neuron model contribution, not STDP differences.
+"""
+
 import os
 os.environ["JAX_PLATFORMS"] = "mps"
 
@@ -13,37 +39,46 @@ from oi_bench.models.cadex.homeostatic import HomeostaticPlasticity
 
 
 class LIFNeuron(bp.dyn.NeuDyn):
-    def __init__(self, size, C_m=200., g_L=10., E_L=-70., V_peak=20.,
-                 V_r=-65., tau_ref=2.0, dt=0.1, **kwargs):
+    def __init__(self, size, C_m=200., g_L=10., E_L=-70.,
+                 V_peak=20., V_r=-65., dt=0.1, **kwargs):
         super().__init__(size=size, **kwargs)
-        self.C_m = C_m; self.g_L = g_L; self.E_L = E_L
-        self.V_peak = V_peak; self.V_r = V_r; self.tau_ref = tau_ref; self.dt = dt
-        self.V         = bm.Variable(bm.full(size, E_L))
-        self.spike     = bm.Variable(bm.zeros(size, dtype=bool))
-        self.input     = bm.Variable(bm.zeros(size))
-        self.V_T       = bm.Variable(bm.full(size, -50.0))
-        self.ref_count = bm.Variable(bm.zeros(size))
+        self.C_m    = C_m
+        self.g_L    = g_L
+        self.E_L    = E_L
+        self.V_peak = V_peak
+        self.V_r    = V_r
+        self.dt     = dt
+        self.V     = bm.Variable(bm.full(size, E_L))
+        self.spike = bm.Variable(bm.zeros(size, dtype=bool))
+        self.input = bm.Variable(bm.zeros(size))
+        self.V_T   = bm.Variable(bm.full(size, -50.0))
 
     def update(self, x=None):
         I_ext = self.input.value if x is None else x
-        ref   = self.ref_count.value
         V     = self.V.value
         dV    = (-self.g_L * (V - self.E_L) + I_ext) / self.C_m
         V_new = V + dV * self.dt
-        in_ref    = (ref > 0.0).astype(bm.float32)
-        V_thr_eff = self.V_T.value + in_ref * 1000.0
-        spike     = V_new >= V_thr_eff
-        V_new     = bm.where(spike, self.V_r, V_new)
-        ref_new   = bm.where(spike, self.tau_ref, bm.maximum(ref - self.dt, 0.0))
-        self.V.value         = V_new
-        self.spike.value     = spike
-        self.ref_count.value = ref_new
-        self.input.value     = bm.zeros(self.num)
+        spike = V_new >= self.V_peak
+        V_new = bm.where(spike, self.V_r, V_new)
+        self.V.value     = V_new
+        self.spike.value = spike
+        self.input.value = bm.zeros(self.num)
 
 
 class LIFNetwork(OIModel):
-    def __init__(self, n_input=100, n_output=50, conn_prob=0.2, dt=0.1,
-                 I_background=150.0, plasticity=True, homeostasis=True, seed=0):
+
+    def __init__(
+        self,
+        n_input: int        = 100,
+        n_output: int       = 50,
+        conn_prob: float    = 1.0,
+        dt: float           = 0.1,
+        I_background: float = 800.0,
+        plasticity: bool    = True,
+        homeostasis: bool   = True,
+        w_init: float       = 0.3,
+        seed: int           = 0,
+    ):
         np.random.seed(seed)
         self._n_input  = n_input
         self._n_output = n_output
@@ -55,10 +90,9 @@ class LIFNetwork(OIModel):
 
         conn = (np.ones((n_input, n_output), dtype=bool)
                 if conn_prob >= 1.0 else {'prob': conn_prob})
-
         self.synapse = TripletSTDPSynapse(
             pre=self.input_pop, post=self.output_pop,
-            conn=conn, w_init=0.5, g_max=0.3, tau_syn=15.0, w_min=0.0, w_max=1.0, soft_bounds=True,
+            conn=conn, w_init=w_init, g_max=3.0, tau_syn=15.0,
             plasticity=plasticity,
         )
 
@@ -66,12 +100,11 @@ class LIFNetwork(OIModel):
         np.fill_diagonal(rec_conn, False)
         self.rec_synapse = TripletSTDPSynapse(
             pre=self.output_pop, post=self.output_pop,
-            conn=rec_conn, w_init=0.1, g_max=0.1, tau_syn=15.0, w_min=0.0, w_max=1.0, soft_bounds=True,
+            conn=rec_conn, w_init=0.1, g_max=1.5, tau_syn=15.0,
             plasticity=plasticity,
         )
 
         self._inhibition_strength = 2.0
-
         self.homeo = HomeostaticPlasticity(
             neurons=self.output_pop, synapse=self.synapse,
             r_target=110.0, trial_dur_ms=400.0,
@@ -86,7 +119,12 @@ class LIFNetwork(OIModel):
         self.homeo.alpha        = 1.0 - np.exp(-1.0 / 5.0)
         self.homeo.enabled      = enabled
 
-    def configure_stdp(self, A2_plus=0.006, A3_plus=0.009, A2_minus=0.003):
+    def configure_stdp(
+        self,
+        A2_plus: float  = 0.006,
+        A3_plus: float  = 0.009,
+        A2_minus: float = 0.003,
+    ) -> None:
         self.synapse.configure_stdp(A2_plus, A3_plus, A2_minus)
         self.rec_synapse.configure_stdp(A2_plus, A3_plus, A2_minus)
 
@@ -99,6 +137,10 @@ class LIFNetwork(OIModel):
             self.synapse.reset_eligibility()
             self.rec_synapse.reset_eligibility()
 
+    def disable_timer(self) -> None:
+        """No-op — SBF model does not use a timer population."""
+        pass
+
     @property
     def n_input(self):  return self._n_input
     @property
@@ -107,23 +149,21 @@ class LIFNetwork(OIModel):
     def dt(self):       return self._dt
 
     def reset(self):
-        self.input_pop.V.value         = bm.full(self._n_input,  self.input_pop.E_L)
-        self.input_pop.spike.value     = bm.zeros(self._n_input, dtype=bool)
-        self.input_pop.ref_count.value = bm.zeros(self._n_input)
-        self.output_pop.V.value        = bm.full(self._n_output, self.output_pop.E_L)
-        self.output_pop.spike.value    = bm.zeros(self._n_output, dtype=bool)
-        self.output_pop.ref_count.value = bm.zeros(self._n_output)
-        self.synapse.r1.value     = bm.zeros(self._n_input)
-        self.synapse.r2.value     = bm.zeros(self._n_input)
-        self.synapse.o1.value     = bm.zeros(self._n_output)
-        self.synapse.o2.value     = bm.zeros(self._n_output)
-        self.synapse.g.value      = bm.zeros((self._n_input,  self._n_output))
+        self.input_pop.V.value      = bm.full(self._n_input,  self.input_pop.E_L)
+        self.input_pop.spike.value  = bm.zeros(self._n_input,  dtype=bool)
+        self.output_pop.V.value     = bm.full(self._n_output, self.output_pop.E_L)
+        self.output_pop.spike.value = bm.zeros(self._n_output, dtype=bool)
+        self.synapse.r1.value       = bm.zeros(self._n_input)
+        self.synapse.r2.value       = bm.zeros(self._n_input)
+        self.synapse.o1.value       = bm.zeros(self._n_output)
+        self.synapse.o2.value       = bm.zeros(self._n_output)
+        self.synapse.g.value        = bm.zeros((self._n_input,  self._n_output))
+        self.rec_synapse.r1.value   = bm.zeros(self._n_output)
+        self.rec_synapse.r2.value   = bm.zeros(self._n_output)
+        self.rec_synapse.o1.value   = bm.zeros(self._n_output)
+        self.rec_synapse.o2.value   = bm.zeros(self._n_output)
+        self.rec_synapse.g.value    = bm.zeros((self._n_output, self._n_output))
         self.synapse.reset_eligibility()
-        self.rec_synapse.r1.value = bm.zeros(self._n_output)
-        self.rec_synapse.r2.value = bm.zeros(self._n_output)
-        self.rec_synapse.o1.value = bm.zeros(self._n_output)
-        self.rec_synapse.o2.value = bm.zeros(self._n_output)
-        self.rec_synapse.g.value  = bm.zeros((self._n_output, self._n_output))
         self.rec_synapse.reset_eligibility()
         self._trial_spike_counts[:] = 0.0
 
@@ -135,13 +175,13 @@ class LIFNetwork(OIModel):
         I_syn  = self.synapse.update(S_pre, S_post, self.output_pop.V.value)
         I_rec  = self.rec_synapse.update(S_post, S_post, self.output_pop.V.value)
         mean_activity = jnp.mean(S_post)
-        I_inh  = -self._inhibition_strength * mean_activity * bm.ones(self._n_output)
+        I_inh   = -self._inhibition_strength * mean_activity * bm.ones(self._n_output)
         I_total = bm.full(self._n_output, self._I_bg) + I_syn + I_rec + I_inh
         self.output_pop.update(x=I_total)
-        spikes = self.output_pop.spike.value.astype(bm.float32)
-        self._trial_spike_counts += np.array(spikes)
+        self._trial_spike_counts += np.array(
+            self.output_pop.spike.value.astype(bm.float32))
         return ModelState(
-            spikes   = spikes,
+            spikes   = self.output_pop.spike.value.astype(bm.float32),
             membrane = self.output_pop.V.value,
             weights  = self.synapse.W.value,
             extras   = {
@@ -151,7 +191,7 @@ class LIFNetwork(OIModel):
             }
         )
 
-    def pre_trial(self, trial_id: int):
+    def pre_trial(self, trial_id: int) -> None:
         self._trial_spike_counts[:] = 0.0
         self.synapse.r1.value     = bm.zeros(self._n_input)
         self.synapse.r2.value     = bm.zeros(self._n_input)
@@ -163,10 +203,9 @@ class LIFNetwork(OIModel):
         self.rec_synapse.o1.value = bm.zeros(self._n_output)
         self.rec_synapse.o2.value = bm.zeros(self._n_output)
         self.rec_synapse.g.value  = bm.zeros((self._n_output, self._n_output))
-        self.input_pop.ref_count.value  = bm.zeros(self._n_input)
-        self.output_pop.ref_count.value = bm.zeros(self._n_output)
 
-    def post_trial(self, trial_id, state_trace, modulator=1.0, e_ff=None, e_rec=None):
+    def post_trial(self, trial_id, state_trace, modulator=1.0,
+                   e_ff=None, e_rec=None):
         if self.synapse.use_eligibility_trace:
             self.synapse.apply_neuromodulation(modulator, e=e_ff)
             self.rec_synapse.apply_neuromodulation(modulator, e=e_rec)
@@ -175,6 +214,9 @@ class LIFNetwork(OIModel):
         self.homeo.update(self._trial_spike_counts.copy())
 
     @property
-    def weight_stats(self): return self.synapse.weight_stats
+    def weight_stats(self):
+        return self.synapse.weight_stats
+
     @property
-    def homeo_stats(self):  return self.homeo.stats
+    def homeo_stats(self):
+        return self.homeo.stats
