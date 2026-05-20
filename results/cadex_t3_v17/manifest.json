@@ -1,0 +1,23 @@
+{
+  "run_id": "cadex_t3_v17",
+  "timestamp": "2026-05-15T19:48:37.812472",
+  "git_hash": "0e6c5c5",
+  "runs": [
+    {
+      "key": "cadex__T3_SequencePrediction",
+      "model_name": "cadex",
+      "task_name": "T3_SequencePrediction",
+      "learning_index": 0.0,
+      "n_trials": 300,
+      "total_wall_time_min": 3.633460891246796
+    },
+    {
+      "key": "lif__T3_SequencePrediction",
+      "model_name": "lif",
+      "task_name": "T3_SequencePrediction",
+      "learning_index": 0.0,
+      "n_trials": 300,
+      "total_wall_time_min": 2.8292330662409464
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "run_id": "cadex_full_v13",
+  "timestamp": "2026-05-10T23:41:31.350669",
+  "git_hash": "0e6c5c5",
+  "runs": [
+    {
+      "key": "cadex__T1_ClassicalConditioning",
+      "model_name": "cadex",
+      "task_name": "T1_ClassicalConditioning",
+      "learning_index": 0.9864999999999999,
+      "n_trials": 200,
+      "total_wall_time_min": 3.5681777675946553
+    },
+    {
+      "key": "cadex__T2_PatternCompletion",
+      "model_name": "cadex",
+      "task_name": "T2_PatternCompletion",
+      "learning_index": 0.694,
+      "n_trials": 150,
+      "total_wall_time_min": 1.4998653729756672
+    },
+    {
+      "key": "cadex__T3_SequencePrediction",
+      "model_name": "cadex",
+      "task_name": "T3_SequencePrediction",
+      "learning_index": 0.35,
+      "n_trials": 300,
+      "total_wall_time_min": 3.569312874476115
+    },
+    {
+      "key": "cadex__T4_IntervalTiming",
+      "model_name": "cadex",
+      "task_name": "T4_IntervalTiming",
+      "learning_index": 0.7166,
+      "n_trials": 150,
+      "total_wall_time_min": 10.298232527573903
+    },
+    {
+      "key": "cadex__T5_DelayMatchToSample",
+      "model_name": "cadex",
+      "task_name": "T5_DelayMatchToSample",
+      "learning_index": 0.6369999999999999,
+      "n_trials": 200,
+      "total_wall_time_min": 7.274253010749817
+    },
+    {
+      "key": "cadex__T6_NBack",
+      "model_name": "cadex",
+      "task_name": "T6_NBack",
+      "learning_index": 0.875,
+      "n_trials": 400,
+      "total_wall_time_min": 8.96036703189214
+    }
+  ]
+}

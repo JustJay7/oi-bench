@@ -1,0 +1,15 @@
+{
+  "run_id": "20260516_140142",
+  "timestamp": "2026-05-16T14:01:42.358666",
+  "git_hash": "0e6c5c5",
+  "runs": [
+    {
+      "key": "lif__T3_SequencePrediction",
+      "model_name": "lif",
+      "task_name": "T3_SequencePrediction",
+      "learning_index": 0.9730000000000001,
+      "n_trials": 300,
+      "total_wall_time_min": 2.641132871309916
+    }
+  ]
+}

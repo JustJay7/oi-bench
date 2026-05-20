@@ -1,0 +1,39 @@
+{
+  "run_id": "t3t4_validation_v1",
+  "timestamp": "2026-05-18T18:07:09.416187",
+  "git_hash": "0e6c5c5",
+  "runs": [
+    {
+      "key": "cadex__T3_SequencePrediction",
+      "model_name": "cadex",
+      "task_name": "T3_SequencePrediction",
+      "learning_index": 0.9730000000000001,
+      "n_trials": 300,
+      "total_wall_time_min": 3.723607369263967
+    },
+    {
+      "key": "cadex__T4_IntervalTiming",
+      "model_name": "cadex",
+      "task_name": "T4_IntervalTiming",
+      "learning_index": 0.4787666666666666,
+      "n_trials": 150,
+      "total_wall_time_min": 8.863334476947784
+    },
+    {
+      "key": "lif__T3_SequencePrediction",
+      "model_name": "lif",
+      "task_name": "T3_SequencePrediction",
+      "learning_index": 0.0,
+      "n_trials": 300,
+      "total_wall_time_min": 3.282748285929362
+    },
+    {
+      "key": "lif__T4_IntervalTiming",
+      "model_name": "lif",
+      "task_name": "T4_IntervalTiming",
+      "learning_index": 0.6860733333333334,
+      "n_trials": 150,
+      "total_wall_time_min": 5.753402944405874
+    }
+  ]
+}

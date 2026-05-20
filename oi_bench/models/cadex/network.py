@@ -52,6 +52,7 @@ class CAdExNetwork(OIModel):
             conn=conn, w_init=w_init, g_max=3.0, tau_syn=15.0,
             plasticity=plasticity,
         )
+        self._W_ff_init = np.array(self.synapse.W.value).copy()
 
         rec_conn = np.random.rand(n_output, n_output) < 0.2
         np.fill_diagonal(rec_conn, False)
@@ -124,6 +125,7 @@ class CAdExNetwork(OIModel):
         self.rec_synapse.o1.value   = bm.zeros(self._n_output)
         self.rec_synapse.o2.value   = bm.zeros(self._n_output)
         self.rec_synapse.g.value    = bm.zeros((self._n_output, self._n_output))
+        self.synapse.W.value = bm.array(self._W_ff_init)
         self.synapse.reset_eligibility()
         self.rec_synapse.reset_eligibility()
         self._trial_spike_counts[:] = 0.0
@@ -156,6 +158,15 @@ class CAdExNetwork(OIModel):
 
     def pre_trial(self, trial_id: int) -> None:
         self._trial_spike_counts[:] = 0.0
+        if getattr(self, '_reset_state_per_trial', False):
+            self.input_pop.V.value      = bm.full(self._n_input,  self.input_pop.E_L)
+            self.input_pop.w.value      = bm.zeros(self._n_input)
+            self.input_pop.Ca.value     = bm.zeros(self._n_input)
+            self.input_pop.spike.value  = bm.zeros(self._n_input,  dtype=bool)
+            self.output_pop.V.value     = bm.full(self._n_output, self.output_pop.E_L)
+            self.output_pop.w.value     = bm.zeros(self._n_output)
+            self.output_pop.Ca.value    = bm.zeros(self._n_output)
+            self.output_pop.spike.value = bm.zeros(self._n_output, dtype=bool)
         self.synapse.r1.value     = bm.zeros(self._n_input)
         self.synapse.r2.value     = bm.zeros(self._n_input)
         self.synapse.o1.value     = bm.zeros(self._n_output)

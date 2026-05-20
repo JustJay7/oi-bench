@@ -1,0 +1,15 @@
+{
+  "run_id": "lif_t3_iso_v3",
+  "timestamp": "2026-05-18T18:44:05.608202",
+  "git_hash": "0e6c5c5",
+  "runs": [
+    {
+      "key": "lif__T3_SequencePrediction",
+      "model_name": "lif",
+      "task_name": "T3_SequencePrediction",
+      "learning_index": 0.0,
+      "n_trials": 300,
+      "total_wall_time_min": 3.2515000700950623
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+model,task,learning_index,convergence_trial,asymptotic_performance,sample_efficiency,wall_time_min
+cadex,T3_SequencePrediction,0.9730,9,1.0000,1.0000,3.6

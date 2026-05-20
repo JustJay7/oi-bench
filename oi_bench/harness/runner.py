@@ -63,15 +63,29 @@ class BenchmarkRunner:
     # JAX traces two distinct kernels, one per value.
     # ------------------------------------------------------------------
 
-    def _build_step_fn(self, model, I_in_jax, I_us_jax, I_bg,
-                       plasticity_scale: float = 1.0):
-        has_rec    = hasattr(model, 'rec_synapse')
-        p_scale_jax = jnp.float32(plasticity_scale)
+    def _build_step_fn(self, model, I_bg, plasticity_scale: float = 1.0):
+        """
+        Build a step function that receives (step_inputs) from bm.for_loop.
 
-        def step_fn(idx):
-            i       = jnp.asarray(idx, dtype=jnp.int32)
-            current = I_in_jax[i]
-            us      = I_us_jax[i]
+        step_inputs is a 2D slice of xs (shape: (2, max_n)) where:
+          step_inputs[0][:n_input] = input current for this step
+          step_inputs[1][:n_output] = US current for this step
+
+        I_in and I_us are passed as operands to bm.for_loop (not captured
+        in the closure) so the same compiled function object is reused
+        across all trials. Creating a new closure each trial — even with
+        identical computation — causes a JAX JIT cache miss every trial,
+        leading to full XLA recompilation (30–120s on Metal) once the
+        cache fills (~trial 130 for T5/T6).
+        """
+        has_rec     = hasattr(model, 'rec_synapse')
+        p_scale_jax = jnp.float32(plasticity_scale)
+        n_input     = model.n_input
+        n_output    = model.n_output
+
+        def step_fn(step_inputs):
+            current = step_inputs[0][:n_input]
+            us      = step_inputs[1][:n_output]
 
             model.input_pop.update(x=current)
             S_pre  = model.input_pop.spike.value.astype(bm.float32)
@@ -86,10 +100,10 @@ class BenchmarkRunner:
                     plasticity_scale=p_scale_jax)
                 mean_act = jnp.mean(S_post)
                 I_inh    = (-model._inhibition_strength
-                             * mean_act * bm.ones(model.n_output))
+                             * mean_act * bm.ones(n_output))
             else:
-                I_rec = bm.zeros(model.n_output)
-                I_inh = bm.zeros(model.n_output)
+                I_rec = bm.zeros(n_output)
+                I_inh = bm.zeros(n_output)
 
             model.output_pop.update(x=I_bg + I_syn + I_rec + I_inh + us)
             return model.output_pop.spike.value.astype(bm.float32)
@@ -100,11 +114,15 @@ class BenchmarkRunner:
     # Path 2: jax.lax.scan with eligibility trace carry (T4)
     # ------------------------------------------------------------------
 
-    def _eligibility_scan(self, model, I_in_jax, I_us_jax, I_bg_val):
-        n_pre = model.n_input
-        n_out = model.n_output
-        syn   = model.synapse
-        rec   = model.rec_synapse
+    def _eligibility_scan(self, model, I_in_jax, I_us_jax, I_bg_val,
+                          snap_steps=None):
+        n_pre   = model.n_input
+        n_out   = model.n_output
+        syn     = model.synapse
+        rec     = model.rec_synapse
+        n_snaps = len(snap_steps) if snap_steps is not None else 0
+        snap_steps_jax = (jnp.array(snap_steps, dtype=jnp.int32)
+                          if n_snaps > 0 else jnp.zeros(0, dtype=jnp.int32))
 
         carry0 = (
             jnp.zeros(n_pre), jnp.zeros(n_pre),
@@ -124,6 +142,8 @@ class BenchmarkRunner:
             jnp.array(model.output_pop.Ca.value)
                 if hasattr(model.output_pop, 'Ca') else jnp.zeros(n_out),
             jnp.zeros(n_out),
+            jnp.int32(0),                                    # step_ctr
+            jnp.zeros((n_snaps, n_pre, n_out)),              # e_snaps
         )
 
         W_ff  = jnp.array(syn.W.value)
@@ -135,11 +155,21 @@ class BenchmarkRunner:
 
         op = model.output_pop; inp = model.input_pop; dt = model.dt
         has_cadex = hasattr(op, 'delta_T')
+        # LIF input uses V_T (-50mV) as spike threshold, not V_peak (20mV).
+        # V_ss from group_current=800pA is 10mV < V_peak=20mV → input never spikes
+        # → S_pre=0 → eligibility trace never accumulates → weights frozen.
+        # Read V_T once before JIT compile; it is static for T4 (homeostasis off).
+        V_T_in = (jnp.array(inp.V_T.value)
+                  if not has_cadex
+                  and hasattr(inp, 'V_T')
+                  and hasattr(inp.V_T, 'value')
+                  else None)
 
         def scan_step(carry, x):
             (r1_ff, r2_ff, o1_ff, o2_ff, e_ff, g_ff,
              r1_rec, r2_rec, o1_rec, o2_rec, e_rec, g_rec,
-             V_in, w_in, Ca_in, V_out, w_out, Ca_out, S_post_prev) = carry
+             V_in, w_in, Ca_in, V_out, w_out, Ca_out, S_post_prev,
+             step_ctr, e_snaps) = carry
 
             I_in_step = x[0][:n_pre]
             I_us_step = x[1][:n_out]
@@ -162,7 +192,8 @@ class BenchmarkRunner:
             else:
                 dV_in = (-inp.g_L*(V_in-inp.E_L)+I_in_step)/inp.C_m
                 V_in_n = V_in+dV_in*dt
-                spike_in = V_in_n >= inp.V_peak
+                thr_in = V_T_in if V_T_in is not None else inp.V_peak
+                spike_in = V_in_n >= thr_in
                 V_in_n = jnp.where(spike_in, inp.V_r, V_in_n)
                 w_in_n = w_in; Ca_in_n = Ca_in
 
@@ -208,9 +239,19 @@ class BenchmarkRunner:
                 w_out_n = w_out; Ca_out_n = Ca_out
 
             S_out = spike_out.astype(jnp.float32)
+            # Snapshot e_ff at each group's burst-off step (Izhikevich 2007:
+            # DA at burst time).  Python loop is unrolled at JAX trace time.
+            for kg in range(n_snaps):
+                e_snaps = jnp.where(
+                    step_ctr == snap_steps_jax[kg],
+                    e_snaps.at[kg].set(e_ff_n),
+                    e_snaps,
+                )
+
             new_carry = (r1_ff_n,r2_ff_n,o1_ff_n,o2_ff_n,e_ff_n,g_ff_n,
                          r1_rec_n,r2_rec_n,o1_rec_n,o2_rec_n,e_rec_n,g_rec_n,
-                         V_in_n,w_in_n,Ca_in_n,V_out_n,w_out_n,Ca_out_n,S_out)
+                         V_in_n,w_in_n,Ca_in_n,V_out_n,w_out_n,Ca_out_n,S_out,
+                         step_ctr + jnp.int32(1), e_snaps)
             return new_carry, S_out
 
         max_n    = max(n_pre, n_out)
@@ -219,7 +260,8 @@ class BenchmarkRunner:
         xs       = jnp.stack([I_in_pad, I_us_pad], axis=1)
 
         final_carry, all_spikes = jax.lax.scan(scan_step, carry0, xs)
-        return all_spikes, final_carry[4], final_carry[10]
+        e_snaps_out = final_carry[20] if n_snaps > 0 else None
+        return all_spikes, final_carry[4], final_carry[10], e_snaps_out
 
     # ------------------------------------------------------------------
     # Path 3: Python loop fallback
@@ -279,6 +321,14 @@ class BenchmarkRunner:
         I_bg_val = (jnp.full(model.n_output, _i_bg)
                     if I_bg is not None else None)
 
+        # Cache compiled step functions keyed by plasticity_scale (1.0 or 0.0).
+        # Building a new closure each trial causes a JAX JIT cache miss on every
+        # trial (new Python object = new function identity). Two closures total.
+        _jit_step_fns = {}
+        n_input  = model.n_input
+        n_output = model.n_output
+        max_n    = max(n_input, n_output)
+
         for trial_id in range(task.n_trials):
             trial_key   = jax.random.fold_in(self.base_key, trial_id)
             is_learning = task.is_learning_trial(trial_id)
@@ -304,8 +354,12 @@ class BenchmarkRunner:
             e_ff_final = e_rec_final = None
 
             if use_elig_scan and hasattr(model, 'output_pop'):
-                all_spikes, e_ff_final, e_rec_final = self._eligibility_scan(
-                    model, I_in_jax, I_us_jax, I_bg_val)
+                _snap_steps = (getattr(task, 'group_off_steps', None)
+                               if is_learning else None)
+                all_spikes, e_ff_final, e_rec_final, e_snaps = \
+                    self._eligibility_scan(
+                        model, I_in_jax, I_us_jax, I_bg_val,
+                        snap_steps=_snap_steps)
                 all_spikes_np       = np.array(all_spikes)
                 output_spikes_accum = all_spikes_np.sum(axis=0)
                 model._trial_spike_counts += output_spikes_accum
@@ -314,13 +368,19 @@ class BenchmarkRunner:
                 compiled = True
 
             elif hasattr(model, 'output_pop') and hasattr(model, 'synapse'):
-                indices = bm.arange(n_steps)
-                # p_scale captured as Python float — JAX traces two kernels
-                step_fn = self._build_step_fn(
-                    model, I_in_jax, I_us_jax, I_bg,
-                    plasticity_scale=p_scale)
+                # Reuse cached step_fn — same Python object → JAX cache hit
+                if p_scale not in _jit_step_fns:
+                    _jit_step_fns[p_scale] = self._build_step_fn(
+                        model, I_bg, plasticity_scale=p_scale)
+                step_fn = _jit_step_fns[p_scale]
+                # Stack I_in and I_us into a single (n_steps, 2, max_n) array
+                # so they are passed as operands (dynamic data) not closure
+                # captures. bm.for_loop slices axis-0 each step.
+                I_in_pad = jnp.pad(I_in_jax, ((0, 0), (0, max_n - n_input)))
+                I_us_pad = jnp.pad(I_us_jax, ((0, 0), (0, max_n - n_output)))
+                xs = jnp.stack([I_in_pad, I_us_pad], axis=1)
                 try:
-                    all_spikes    = bm.for_loop(step_fn, indices, jit=True)
+                    all_spikes    = bm.for_loop(step_fn, xs, jit=True)
                     all_spikes_np = np.array(all_spikes)
                     output_spikes_accum = all_spikes_np.sum(axis=0)
                     model._trial_spike_counts += output_spikes_accum
@@ -358,8 +418,45 @@ class BenchmarkRunner:
             # Only apply plasticity updates on learning trials
             if is_learning:
                 if e_ff_final is not None:
+                    tau_e = getattr(
+                        getattr(model, 'synapse', None), 'tau_e', 1200.0)
+
+                    # Select burst-time trace if snapshots are available
+                    # (Izhikevich 2007: DA at burst time, short tau_e).
+                    # e_snaps[k] = e_ff captured at group k's burst-off step,
+                    # giving precise credit to the causal input group.
+                    # Fall back to e_ff_final for tasks without group structure.
+                    if (e_snaps is not None
+                            and hasattr(task, '_group_times_ms')):
+                        reprod_ms = float(scores.get(
+                            'reproduced_ms', task.trial_duration_ms))
+                        k_winning = int(np.argmin(
+                            np.abs(task._group_times_ms - reprod_ms)))
+                        e_ff_for_da = e_snaps[k_winning]
+                    else:
+                        e_ff_for_da = e_ff_final
+
                     model.post_trial(trial_id, [], modulator=modulator,
-                                     e_ff=e_ff_final, e_rec=e_rec_final)
+                                     e_ff=e_ff_for_da, e_rec=e_rec_final)
+
+                    # Bootstrap: on wrong trials, apply unconditional LTP
+                    # to the target group using its burst-time trace snapshot.
+                    if (modulator < 0
+                            and hasattr(task, 'eligibility_for_target')
+                            and hasattr(model, 'synapse')):
+                        target_ms = float(scores.get(
+                            'target_ms',
+                            scores.get('reproduced_ms', task.trial_duration_ms)))
+                        if (e_snaps is not None
+                                and hasattr(task, '_group_times_ms')):
+                            k_target = int(np.argmin(
+                                np.abs(task._group_times_ms - target_ms)))
+                            e_for_bootstrap = e_snaps[k_target]
+                        else:
+                            e_for_bootstrap = e_ff_final
+                        e_target = task.eligibility_for_target(
+                            e_for_bootstrap, target_ms, tau_e)
+                        model.synapse.apply_neuromodulation(0.5, e=e_target)
                 else:
                     model.post_trial(trial_id, [], modulator=modulator)
 

@@ -80,34 +80,9 @@ class IntervalTimingTask(BenchmarkTask):
         n_groups: int                    = 10,
         group_current: float             = 800.0,
         group_dur_ms: float              = 30.0,
+        noise_std: float                 = 200.0,
         dt: float                        = 0.1,
     ):
-        """
-        Parameters
-        ----------
-        target_intervals_ms : list of float
-            Target intervals to learn (ms).
-        n_trials_per_interval : int
-            Training trials per interval.
-        cue_duration_ms : float
-            Duration of cue burst (ms).
-        cue_current : float
-            Current to ALL input neurons during cue (pA).
-        tonic_output_current : float
-            Tonic drive to output population (pA). Sub-threshold.
-            With I_bg=0 keeps output near rest without spontaneous firing.
-        n_groups : int
-            Number of sequential input groups. Must divide n_input.
-            Default 10 groups × 10 neurons for n_input=100.
-        group_current : float
-            Drive current to active group neurons (pA).
-            Must produce I_syn > CAdEx threshold (~600pA from rest).
-            Default 3000pA → I_syn peak ~625pA.
-        group_dur_ms : float
-            Duration each group is active (ms). Default 30ms.
-        dt : float
-            Simulation timestep (ms).
-        """
         self._intervals            = target_intervals_ms
         self._n_per_interval       = n_trials_per_interval
         self._cue_dur              = cue_duration_ms
@@ -116,7 +91,10 @@ class IntervalTimingTask(BenchmarkTask):
         self._n_groups             = n_groups
         self._group_current        = group_current
         self._group_dur_ms         = group_dur_ms
+        self._noise_std            = noise_std
         self._dt                   = dt
+        self._noise_trial_id       = -1
+        self._noise_array          = None
 
         self._max_interval = float(max(target_intervals_ms))
         self._trial_dur    = cue_duration_ms + self._max_interval + 200.0
@@ -151,6 +129,14 @@ class IntervalTimingTask(BenchmarkTask):
     @property
     def requires_spike_times(self) -> bool:
         return True
+
+    @property
+    def group_off_steps(self) -> 'np.ndarray':
+        """Timestep index at the end of each group's burst window.
+        Used by the eligibility scan to snapshot e_ff after each group's
+        full synaptic contribution has accumulated (Izhikevich 2007: DA at
+        burst time, not trial end).  Shape: (n_groups,) int32."""
+        return self._group_off_steps
 
     def setup(self, model: OIModel) -> None:
         self._n_input  = model.n_input
@@ -189,7 +175,10 @@ class IntervalTimingTask(BenchmarkTask):
 
         # Exclusion window
         tau_syn = getattr(getattr(model, 'synapse', None), 'tau_syn', 15.0)
-        self._exclusion_ms   = self._cue_dur + 3.0 * tau_syn
+        # Skip cue + group 0 + group 1 + synaptic tail so group 1's
+        # residual activity cannot win the max-window contest for
+        # targets that should map to group 2+ (e.g. 200ms → group 2).
+        self._exclusion_ms   = self._cue_dur + delta_t + self._group_dur_ms + 3.0 * tau_syn
         self._exclusion_step = int(self._exclusion_ms / self._dt)
 
         # Burst threshold from silent baseline
@@ -272,11 +261,9 @@ class IntervalTimingTask(BenchmarkTask):
             (trial_id // self._n_per_interval) % len(self._intervals)]
 
     def _target_group(self, trial_id: int) -> int:
-        """Return group index whose fire time is closest to T_target."""
-        target  = self._get_target(trial_id)
-        delta_t = self._max_interval / self._n_groups
-        k_star  = int(round(target / delta_t)) - 1
-        return min(max(k_star, 0), self._n_groups - 1)
+        """Return group index whose center time is closest to T_target."""
+        target = self._get_target(trial_id)
+        return int(np.argmin(np.abs(self._group_times_ms - target)))
 
     def generate_trial(self, trial_id: int, rng_key) -> List[Stimulus]:
         """Return pre-computed stimulus list. Same every trial."""
@@ -293,7 +280,20 @@ class IntervalTimingTask(BenchmarkTask):
         ]
 
     def us_current_for_step(self, t_ms: float, trial_id: int) -> np.ndarray:
-        """Sub-threshold tonic drive to output. Keeps neurons near rest."""
+        """Tonic drive + per-trial Gaussian noise to break deterministic symmetry."""
+        if self._noise_std > 0:
+            if self._noise_trial_id != trial_id:
+                n_steps = int(self._trial_dur / self._dt) + 1
+                rng = np.random.default_rng(trial_id + 777)
+                self._noise_array = rng.normal(
+                    0.0, self._noise_std,
+                    (n_steps, self._n_output)).astype(np.float32)
+                self._noise_trial_id = trial_id
+            step_idx = int(round(t_ms / self._dt))
+            step_idx = min(step_idx, len(self._noise_array) - 1)
+            return (np.full(self._n_output, self._tonic_output_current,
+                            dtype=np.float32)
+                    + self._noise_array[step_idx])
         return np.full(self._n_output, self._tonic_output_current,
                        dtype=np.float32)
 
@@ -316,14 +316,31 @@ class IntervalTimingTask(BenchmarkTask):
                 'target_ms':     float(target),
             }
 
-        reproduced_ms = float(self._max_interval)
-        for i in range(self._exclusion_step, len(spike_ts)):
-            if spike_ts[i] >= self._burst_threshold:
-                reproduced_ms = i * self._dt - self._cue_dur
-                break
+        # Find group window (after exclusion) with highest mean spike activity.
+        # This makes reproduced_ms track which group has the strongest synapses,
+        # enabling weight-based selectivity rather than first-spike detection.
+        best_k    = -1
+        best_rate = -1.0
+        for k in range(self._n_groups):
+            on  = int(self._group_on_steps[k])
+            off = int(self._group_off_steps[k])
+            if off <= self._exclusion_step:
+                continue
+            on = max(on, self._exclusion_step)
+            window = spike_ts[on : min(off, len(spike_ts))]
+            if len(window) > 0:
+                rate = float(np.mean(window))
+                if rate > best_rate:
+                    best_rate = rate
+                    best_k    = k
+        reproduced_ms = (float(self._group_times_ms[best_k])
+                         if best_k >= 0 else float(self._max_interval))
 
         weber_error = abs(reproduced_ms - target) / max(target, 1.0)
         accuracy    = float(max(0.0, 1.0 - weber_error))
+
+        target_k = self._target_group(trial_id)
+        print(f"  Trial {trial_id:3d}: target_group={target_k} winning_group={best_k} weber={weber_error:.3f}")
 
         return {
             'accuracy':      accuracy,
@@ -331,3 +348,39 @@ class IntervalTimingTask(BenchmarkTask):
             'reproduced_ms': float(reproduced_ms),
             'target_ms':     float(target),
         }
+
+    def eligibility_for_target(
+        self,
+        e_ff: 'jnp.ndarray',
+        target_ms: float,
+        tau_e: float,
+    ) -> 'jnp.ndarray':
+        """
+        Extract the naturally decayed eligibility trace for the target group.
+
+        Implements the Izhikevich (2007) three-factor rule directly: the weight
+        update uses e(T_trial), the trace value at trial end after natural
+        exponential decay from each STDP event. No temporal un-decay correction
+        is applied — per Frémaux & Gerstner (2016) and Gerstner et al. (2018),
+        the rule is dw = e(t) · M_3rd(t), where e(t) is the currently decayed
+        value. The natural decay gradient already assigns more credit to groups
+        that fired recently (late groups retain more trace at trial end).
+
+        On wrong trials the target group's natural trace is small because its
+        synaptic weights are low (→ weak STDP coincidences → weak eligibility).
+        The bootstrap LTP (da=0.5 applied by the caller) provides the upward
+        signal needed to grow the target group out of its low-weight state.
+        Only the target group rows are non-zero; all other rows are zeroed.
+        """
+        import jax.numpy as jnp
+        import numpy as np
+
+        npg = self._n_input // self._n_groups
+        k_target = int(np.argmin(np.abs(self._group_times_ms - target_ms)))
+
+        mask = np.zeros(self._n_input, dtype=np.float32)
+        s = k_target * npg
+        mask[s : s + npg] = 1.0
+
+        mask_2d = jnp.array(mask)[:, None]
+        return e_ff * mask_2d

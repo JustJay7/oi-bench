@@ -1,0 +1,23 @@
+{
+  "run_id": "lif_t3t4_refractory_check",
+  "timestamp": "2026-05-16T23:08:09.378171",
+  "git_hash": "0e6c5c5",
+  "runs": [
+    {
+      "key": "lif__T3_SequencePrediction",
+      "model_name": "lif",
+      "task_name": "T3_SequencePrediction",
+      "learning_index": 0.7,
+      "n_trials": 15,
+      "total_wall_time_min": 0.14815406401952108
+    },
+    {
+      "key": "lif__T4_IntervalTiming",
+      "model_name": "lif",
+      "task_name": "T4_IntervalTiming",
+      "learning_index": 0.21216666666666667,
+      "n_trials": 15,
+      "total_wall_time_min": 0.5285897771517436
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "run_id": "t3_fix_v7",
+  "timestamp": "2026-05-18T15:39:48.900263",
+  "git_hash": "0e6c5c5",
+  "runs": [
+    {
+      "key": "cadex__T3_SequencePrediction",
+      "model_name": "cadex",
+      "task_name": "T3_SequencePrediction",
+      "learning_index": 0.9730000000000001,
+      "n_trials": 300,
+      "total_wall_time_min": 3.612669245402018
+    },
+    {
+      "key": "lif__T3_SequencePrediction",
+      "model_name": "lif",
+      "task_name": "T3_SequencePrediction",
+      "learning_index": 0.0,
+      "n_trials": 300,
+      "total_wall_time_min": 3.2651150544484455
+    }
+  ]
+}

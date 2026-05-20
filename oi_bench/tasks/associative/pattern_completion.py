@@ -105,6 +105,12 @@ class PatternCompletionTask(BenchmarkTask):
     def learning_axis(self) -> str:
         return "associative"
 
+    def is_learning_trial(self, trial_id: int) -> bool:
+        if self._trial_schedule is None:
+            return True
+        _, is_test = self._trial_schedule[trial_id]
+        return not is_test
+
     def setup(self, model: OIModel) -> None:
         self._n_input  = model.n_input
         self._n_output = model.n_output

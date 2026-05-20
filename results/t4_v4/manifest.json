@@ -1,0 +1,23 @@
+{
+  "run_id": "t4_v4",
+  "timestamp": "2026-05-19T10:59:52.832636",
+  "git_hash": "0e6c5c5",
+  "runs": [
+    {
+      "key": "cadex__T4_IntervalTiming",
+      "model_name": "cadex",
+      "task_name": "T4_IntervalTiming",
+      "learning_index": 0.9076599999999999,
+      "n_trials": 150,
+      "total_wall_time_min": 8.27907298405965
+    },
+    {
+      "key": "lif__T4_IntervalTiming",
+      "model_name": "lif",
+      "task_name": "T4_IntervalTiming",
+      "learning_index": 0.8970866666666666,
+      "n_trials": 150,
+      "total_wall_time_min": 5.370707082748413
+    }
+  ]
+}

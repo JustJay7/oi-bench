@@ -30,6 +30,18 @@ requires_spike_times=True so runner provides per-timestep population spike
 counts in metadata['spike_counts_timeseries']. On test trials we check for
 output activity in the D and E element windows after the truncation point.
 
+Only the E window counts toward accuracy. D fires by passive FF bleedthrough
+(C→D gap=30ms, tau_syn=15ms → exp(−30/15)=13.5% residual conductance, which
+is sufficient to drive output above threshold regardless of learning). E is
+2 hops from the last presented element (C→D→E): residual from C decays to
+~0.5% by t=200ms, so E firing requires the D→E recurrent chain built by STDP.
+Scoring D would give acc=0.5 to any untrained network (D always fires, E never
+fires), making the metric indistinguishable from no learning.
+
+Biological basis: Dragoi & Tonegawa (2011) distinguish pre-play (no learning)
+from post-play (after learning) sequences. The E window captures this contrast;
+the D window does not.
+
 References:
   Dragoi & Tonegawa (2011) Nature 469:397-401
   Drew & Abbott (2006) PNAS 103:8876-8881
@@ -181,7 +193,9 @@ class SequencePredictionTask(BenchmarkTask):
 
         d_correct = window_has_activity(self._truncate_at + 1)
         e_correct = window_has_activity(self._truncate_at + 2)
-        accuracy  = float((d_correct + e_correct) / 2.0)
+        # D fires by FF bleedthrough regardless of learning; only E requires
+        # the learned D→E recurrent chain and is a genuine prediction signal.
+        accuracy  = float(e_correct)
 
         return {
             'accuracy':         accuracy,
