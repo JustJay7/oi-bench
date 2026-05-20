@@ -2,8 +2,6 @@
 CAdExNetwork — Reference OI Model implementing OIModel adapter interface.
 """
 
-import os
-os.environ["JAX_PLATFORMS"] = "mps"
 
 import numpy as np
 import brainpy.math as bm

@@ -26,8 +26,6 @@ STDP amplitudes: same as CAdEx (Pfister & Gerstner 2006 Table 1).
 The ablation isolates neuron model contribution, not STDP differences.
 """
 
-import os
-os.environ["JAX_PLATFORMS"] = "mps"
 
 import numpy as np
 import brainpy as bp

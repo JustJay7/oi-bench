@@ -25,7 +25,6 @@ Why GL over Caputo:
 """
 
 import os
-os.environ["JAX_PLATFORMS"] = "mps"
 
 import jax.numpy as jnp
 import numpy as np

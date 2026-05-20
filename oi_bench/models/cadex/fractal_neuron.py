@@ -25,8 +25,6 @@ Validated against neocortical pyramidal neuron recordings in:
   Weinberg (2015) PLOS ONE 10(4):e0122401
 """
 
-import os
-os.environ["JAX_PLATFORMS"] = "mps"
 
 import numpy as np
 import brainpy as bp

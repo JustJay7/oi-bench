@@ -29,8 +29,6 @@ References:
   Glorot & Bengio (2010) AISTATS
 """
 
-import os
-os.environ["JAX_PLATFORMS"] = "mps"
 
 import numpy as np
 import brainpy as bp

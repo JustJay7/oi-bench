@@ -28,8 +28,6 @@ Calcium:
   In membrane eq: -I_Ca → subtracting a negative = depolarising. ✓
 """
 
-import os
-os.environ["JAX_PLATFORMS"] = "mps"
 
 import brainpy as bp
 import brainpy.math as bm

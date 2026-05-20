@@ -95,7 +95,7 @@ STDP_CONFIG = {
         'T2': {'A2_plus': 0.004, 'A3_plus': 0.006, 'A2_minus': 0.002},
         # A3_plus=0: same rationale as cadex T3 above.
         'T3': {'A2_plus': 0.001, 'A3_plus': 0.000, 'A2_minus': 0.001},
-        'T4': {'A2_plus': 0.005, 'A3_plus': 0.005,  'A2_minus': 0.001},
+        'T4': {'A2_plus': 0.003, 'A3_plus': 0.003,  'A2_minus': 0.005},
         'T5': {'A2_plus': 0.001, 'A3_plus': 0.002, 'A2_minus': 0.001},
         'T6': {'A2_plus': 0.001, 'A3_plus': 0.002, 'A2_minus': 0.001},
     },

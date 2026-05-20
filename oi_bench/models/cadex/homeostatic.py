@@ -36,8 +36,6 @@ References:
   Zenke & Gerstner (2017) Curr. Opin. Neurobiol. 43:166-176
 """
 
-import os
-os.environ["JAX_PLATFORMS"] = "mps"
 
 import numpy as np
 import brainpy.math as bm

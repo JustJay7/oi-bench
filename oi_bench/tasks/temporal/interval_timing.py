@@ -339,9 +339,6 @@ class IntervalTimingTask(BenchmarkTask):
         weber_error = abs(reproduced_ms - target) / max(target, 1.0)
         accuracy    = float(max(0.0, 1.0 - weber_error))
 
-        target_k = self._target_group(trial_id)
-        print(f"  Trial {trial_id:3d}: target_group={target_k} winning_group={best_k} weber={weber_error:.3f}")
-
         return {
             'accuracy':      accuracy,
             'weber_error':   float(weber_error),

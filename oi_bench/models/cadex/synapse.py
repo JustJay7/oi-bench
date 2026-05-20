@@ -29,8 +29,6 @@ References:
   Izhikevich (2007) Cereb. Cortex 17:2443-2452
 """
 
-import os
-os.environ["JAX_PLATFORMS"] = "mps"
 
 import numpy as np
 import brainpy as bp
