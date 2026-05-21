@@ -9,7 +9,7 @@
       "task_name": "T1_ClassicalConditioning",
       "learning_index": 0.9864999999999999,
       "n_trials": 200,
-      "total_wall_time_min": 4.043027528127035
+      "total_wall_time_min": 3.577549386024475
     },
     {
       "key": "cadex__T2_PatternCompletion",
@@ -17,7 +17,7 @@
       "task_name": "T2_PatternCompletion",
       "learning_index": 0.694,
       "n_trials": 150,
-      "total_wall_time_min": 1.5056794206301372
+      "total_wall_time_min": 1.5243280132611592
     },
     {
       "key": "cadex__T3_SequencePrediction",
@@ -25,15 +25,15 @@
       "task_name": "T3_SequencePrediction",
       "learning_index": 0.9730000000000001,
       "n_trials": 300,
-      "total_wall_time_min": 3.579744593302409
+      "total_wall_time_min": 3.600945762793223
     },
     {
       "key": "cadex__T4_IntervalTiming",
       "model_name": "cadex",
       "task_name": "T4_IntervalTiming",
-      "learning_index": 0.7166,
+      "learning_index": 0.8312066666666666,
       "n_trials": 150,
-      "total_wall_time_min": 8.454161743323008
+      "total_wall_time_min": 14.287025010585785
     },
     {
       "key": "cadex__T5_DelayMatchToSample",
@@ -41,7 +41,7 @@
       "task_name": "T5_DelayMatchToSample",
       "learning_index": 0.6369999999999999,
       "n_trials": 200,
-      "total_wall_time_min": 7.317677783966064
+      "total_wall_time_min": 7.521874046325683
     },
     {
       "key": "cadex__T6_NBack",
@@ -49,7 +49,7 @@
       "task_name": "T6_NBack",
       "learning_index": 0.875,
       "n_trials": 400,
-      "total_wall_time_min": 8.682878569761913
+      "total_wall_time_min": 9.285097682476044
     },
     {
       "key": "lif__T1_ClassicalConditioning",
@@ -57,7 +57,7 @@
       "task_name": "T1_ClassicalConditioning",
       "learning_index": 0.9864999999999999,
       "n_trials": 200,
-      "total_wall_time_min": 3.1228350162506104
+      "total_wall_time_min": 3.189290150006612
     },
     {
       "key": "lif__T2_PatternCompletion",
@@ -65,23 +65,23 @@
       "task_name": "T2_PatternCompletion",
       "learning_index": 0.724,
       "n_trials": 150,
-      "total_wall_time_min": 1.262743055820465
+      "total_wall_time_min": 1.3380016764005025
     },
     {
       "key": "lif__T3_SequencePrediction",
       "model_name": "lif",
       "task_name": "T3_SequencePrediction",
-      "learning_index": 0.9730000000000001,
+      "learning_index": 0.0,
       "n_trials": 300,
-      "total_wall_time_min": 3.072323481241862
+      "total_wall_time_min": 3.3144514481226603
     },
     {
       "key": "lif__T4_IntervalTiming",
       "model_name": "lif",
       "task_name": "T4_IntervalTiming",
-      "learning_index": 0.6860733333333334,
+      "learning_index": 0.7903466666666668,
       "n_trials": 150,
-      "total_wall_time_min": 5.765854680538178
+      "total_wall_time_min": 56.23239963452021
     },
     {
       "key": "lif__T5_DelayMatchToSample",
@@ -89,7 +89,7 @@
       "task_name": "T5_DelayMatchToSample",
       "learning_index": 0.502,
       "n_trials": 200,
-      "total_wall_time_min": 6.044021697839101
+      "total_wall_time_min": 45.45725779136022
     },
     {
       "key": "lif__T6_NBack",
@@ -97,7 +97,7 @@
       "task_name": "T6_NBack",
       "learning_index": 0.8197500000000001,
       "n_trials": 400,
-      "total_wall_time_min": 8.074957370758057
+      "total_wall_time_min": 88.53016093174617
     },
     {
       "key": "lsm__T1_ClassicalConditioning",
@@ -105,7 +105,7 @@
       "task_name": "T1_ClassicalConditioning",
       "learning_index": 0.4365,
       "n_trials": 200,
-      "total_wall_time_min": 2.522848411401113
+      "total_wall_time_min": 34.727717542648314
     },
     {
       "key": "lsm__T2_PatternCompletion",
@@ -113,7 +113,7 @@
       "task_name": "T2_PatternCompletion",
       "learning_index": 0.19,
       "n_trials": 150,
-      "total_wall_time_min": 1.055921232700348
+      "total_wall_time_min": 1.051835040251414
     },
     {
       "key": "lsm__T3_SequencePrediction",
@@ -121,7 +121,7 @@
       "task_name": "T3_SequencePrediction",
       "learning_index": 0.0,
       "n_trials": 300,
-      "total_wall_time_min": 2.537719980875651
+      "total_wall_time_min": 18.616495939095817
     },
     {
       "key": "lsm__T4_IntervalTiming",
@@ -129,7 +129,7 @@
       "task_name": "T4_IntervalTiming",
       "learning_index": 0.53758,
       "n_trials": 150,
-      "total_wall_time_min": 51.693292784690854
+      "total_wall_time_min": 21.693952067693075
     },
     {
       "key": "lsm__T5_DelayMatchToSample",
@@ -137,7 +137,7 @@
       "task_name": "T5_DelayMatchToSample",
       "learning_index": 0.502,
       "n_trials": 200,
-      "total_wall_time_min": 5.106744050979614
+      "total_wall_time_min": 4.949674236774444
     },
     {
       "key": "lsm__T6_NBack",
@@ -145,7 +145,7 @@
       "task_name": "T6_NBack",
       "learning_index": 0.784,
       "n_trials": 400,
-      "total_wall_time_min": 6.197976187864939
+      "total_wall_time_min": 43.475870966911316
     }
   ]
 }
