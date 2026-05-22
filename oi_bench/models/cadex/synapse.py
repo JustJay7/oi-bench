@@ -202,6 +202,9 @@ class TripletSTDPSynapse(bp.Projection):
         dW_ltd     = self.A2_minus * jnp.outer(S_pre, o1)
         dW_stdp    = (dW_ltp - dW_ltd) * self.mask_jax
 
+        cadex_scale = getattr(self.post, 'C_m', 200.0) / getattr(self.post, 'C_eff', 200.0)
+        dW_stdp = dW_stdp * cadex_scale
+
         e_new  = e * (1.0 - dt / self.tau_e) + dW_stdp
         r1_new = r1 * (1.0 - dt / self.tau_plus)  + S_pre
         r2_new = r2 * (1.0 - dt / self.tau_x)     + S_pre

@@ -1,0 +1,23 @@
+{
+  "run_id": "t4_eprop_v1",
+  "timestamp": "2026-05-21T14:28:37.865732",
+  "git_hash": "82b4076",
+  "runs": [
+    {
+      "key": "cadex__T4_IntervalTiming",
+      "model_name": "cadex",
+      "task_name": "T4_IntervalTiming",
+      "learning_index": 0.49996666666666667,
+      "n_trials": 15,
+      "total_wall_time_min": 1.414037255446116
+    },
+    {
+      "key": "lif__T4_IntervalTiming",
+      "model_name": "lif",
+      "task_name": "T4_IntervalTiming",
+      "learning_index": 0.3730333333333334,
+      "n_trials": 15,
+      "total_wall_time_min": 1.1151678601900736
+    }
+  ]
+}
