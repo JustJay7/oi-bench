@@ -123,16 +123,21 @@ def run_and_save(model_name: str, seed: int = 0):
     np.savez(
         out,
         DE_weight            = np.array(task._diag_DE_weight),
+        DE_weight_init       = np.array(task._diag_DE_weight_init
+                                        if task._diag_DE_weight_init is not None
+                                        else float('nan')),
         D_spikes_in_E_window = np.array(task._diag_D_spikes_in_E_window),
         E_spikes             = np.array(task._diag_E_spikes),
+        E_spikes_test        = np.array(task._diag_E_spikes_test),
     )
     print(f"\nDiagnostics saved → {out}")
 
     diag = dict(np.load(out))
-    print("\n--- Summary (final 10 learning trials) ---")
-    print(f"  DE_weight:   {diag['DE_weight'][-10:].mean():.4f}")
-    print(f"  D→E bridge:  {diag['D_spikes_in_E_window'][-10:].mean():.1f} spikes")
-    print(f"  E-window:    {diag['E_spikes'][-10:].mean():.1f} spikes")
+    print("\n--- Summary ---")
+    print(f"  DE_weight init → final:  {float(diag['DE_weight_init']):.4f} → {diag['DE_weight'][-10:].mean():.4f}")
+    print(f"  D→E bridge (last 10):    {diag['D_spikes_in_E_window'][-10:].mean():.1f} spikes")
+    print(f"  E-window learning:       {diag['E_spikes'][-10:].mean():.1f} spikes")
+    print(f"  E-window test:           {diag['E_spikes_test'].mean():.1f} spikes")
 
 
 # ------------------------------------------------------------------
@@ -151,20 +156,20 @@ def plot():
             sys.exit(1)
         results[model_name] = dict(np.load(path))
 
-    fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+    fig, axes = plt.subplots(2, 3, figsize=(14, 8))
     fig.suptitle(
         "T3 Sequence Prediction — D→E Learning Mechanism\n"
-        "CAdEx vs LIF over 200 learning trials",
+        "CAdEx vs LIF: learning trials (top) and test trials (bottom)",
         fontsize=11, fontweight='bold',
     )
 
-    metrics = [
-        ('DE_weight',            'Mean D→E synaptic weight',                   'Weight (a.u.)'),
-        ('D_spikes_in_E_window', 'Output spikes in D→E bridge\n(50ms after D fires)', 'Spike count'),
-        ('E_spikes',             'Output spikes in E-window\n(200–220ms)',            'Spike count'),
+    # --- Row 1: learning trial diagnostics ---
+    learning_metrics = [
+        ('DE_weight',            'D→E synaptic weight\n(learning trials 1–200)',       'Weight (a.u.)'),
+        ('D_spikes_in_E_window', 'Output spikes in D→E bridge\n(50ms after D fires)',  'Spike count'),
+        ('E_spikes',             'Output spikes in E-window\n(200–220ms, full sequence)', 'Spike count'),
     ]
-
-    for ax, (key, title, ylabel) in zip(axes, metrics):
+    for ax, (key, title, ylabel) in zip(axes[0], learning_metrics):
         for model_name, diag in results.items():
             y = diag[key]
             x = np.arange(1, len(y) + 1)
@@ -175,6 +180,51 @@ def plot():
         ax.set_ylabel(ylabel)
         ax.legend(fontsize=8)
         ax.set_xlim(1, max(len(d[key]) for d in results.values()))
+
+    # --- Row 2, left: D→E weight — initial vs end-of-learning bar chart ---
+    ax_bar = axes[1, 0]
+    n_models = len(results)
+    x_pos    = np.arange(n_models)
+    width    = 0.35
+    model_names = list(results.keys())
+    init_vals  = [float(results[m]['DE_weight_init']) for m in model_names]
+    final_vals = [float(results[m]['DE_weight'][-1])  for m in model_names]
+    bars_init  = ax_bar.bar(x_pos - width / 2, init_vals,  width,
+                            color=[colors[m] for m in model_names],
+                            alpha=0.35, label='Initial (no STDP)')
+    bars_final = ax_bar.bar(x_pos + width / 2, final_vals, width,
+                            color=[colors[m] for m in model_names],
+                            alpha=1.0,  label='End of learning (trial 200)')
+    ax_bar.set_xticks(x_pos)
+    ax_bar.set_xticklabels([labels[m] for m in model_names], fontsize=9)
+    ax_bar.set_ylabel('Mean D→E weight (a.u.)')
+    ax_bar.set_title('D→E weight: initial vs end of learning\n(STDP effect on D-input → output connections)', fontsize=9)
+    ax_bar.legend(fontsize=8)
+
+    # --- Row 2, middle: E-window spikes during test trials ---
+    ax_test = axes[1, 1]
+    for model_name, diag in results.items():
+        y = diag['E_spikes_test']
+        x = np.arange(1, len(y) + 1)
+        ax_test.plot(x, y, color=colors[model_name], linewidth=1.4,
+                     label=labels[model_name])
+    ax_test.set_title('E-window output spikes — TEST trials\n(A→B→C only; E fires only from learned D→E chain)', fontsize=9)
+    ax_test.set_xlabel('Test trial (201–300)')
+    ax_test.set_ylabel('Spike count')
+    ax_test.legend(fontsize=8)
+    ax_test.set_xlim(1, max(len(d['E_spikes_test']) for d in results.values()))
+
+    # --- Row 2, right: mean test E-spikes bar (summary) ---
+    ax_sum = axes[1, 2]
+    mean_test = [float(results[m]['E_spikes_test'].mean()) for m in model_names]
+    ax_sum.bar(x_pos, mean_test, 0.5,
+               color=[colors[m] for m in model_names], alpha=0.85)
+    ax_sum.set_xticks(x_pos)
+    ax_sum.set_xticklabels([labels[m] for m in model_names], fontsize=9)
+    ax_sum.set_ylabel('Mean E-window spikes')
+    ax_sum.set_title('Mean E-window activity (test)\n(higher = better sequence prediction)', fontsize=9)
+    for i, v in enumerate(mean_test):
+        ax_sum.text(i, v + 0.05, f'{v:.1f}', ha='center', va='bottom', fontsize=9)
 
     plt.tight_layout()
     out = os.path.join(FIGURES_DIR, 't3_mechanism.png')

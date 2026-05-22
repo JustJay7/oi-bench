@@ -95,6 +95,8 @@ class SequencePredictionTask(BenchmarkTask):
         self._diag_DE_weight             = []
         self._diag_D_spikes_in_E_window  = []
         self._diag_E_spikes              = []
+        self._diag_E_spikes_test         = []
+        self._diag_DE_weight_init        = None   # captured at setup() before any STDP
 
     @property
     def name(self) -> str:
@@ -142,6 +144,11 @@ class SequencePredictionTask(BenchmarkTask):
               f"each element: {n_per_element} neurons | "
               f"truncate at element {self._truncate_at}")
         print(f"  Learning: {self._n_learning} | Test: {self._n_test} trials")
+
+        if self.record_diagnostics and hasattr(model, 'synapse'):
+            D_neurons = self._element_neurons[self._truncate_at + 1]
+            W0 = np.array(model.synapse.W.value)
+            self._diag_DE_weight_init = float(np.mean(W0[D_neurons, :]))
 
     def generate_trial(self, trial_id: int, rng_key) -> List[Stimulus]:
         is_test   = trial_id >= self._n_learning
@@ -194,6 +201,21 @@ class SequencePredictionTask(BenchmarkTask):
             self._diag_D_spikes_in_E_window.append(0.0)
             self._diag_E_spikes.append(0.0)
 
+    def _record_test_diagnostics(self, metadata: dict | None) -> None:
+        """Record E-window output spikes on test trials (A→B→C only, no E input)."""
+        E_idx = self._truncate_at + 2
+        spike_ts = (metadata.get('spike_counts_timeseries')
+                    if metadata is not None else None)
+        if spike_ts is not None and len(spike_ts) > 0:
+            e_onset_step  = int(E_idx * (self._element_dur + self._isi) / self._dt)
+            e_offset_step = int(
+                (E_idx * (self._element_dur + self._isi) + self._element_dur) / self._dt)
+            n = len(spike_ts)
+            self._diag_E_spikes_test.append(
+                float(np.sum(spike_ts[min(e_onset_step, n) : min(e_offset_step, n)])))
+        else:
+            self._diag_E_spikes_test.append(0.0)
+
     def compute_score(
         self,
         response,
@@ -213,6 +235,9 @@ class SequencePredictionTask(BenchmarkTask):
 
         spike_ts = metadata.get('spike_counts_timeseries') \
                    if metadata is not None else None
+
+        if self.record_diagnostics and self._element_neurons is not None:
+            self._record_test_diagnostics(metadata)
 
         if spike_ts is None or len(spike_ts) == 0:
             mean_rate = float(np.mean(np.array(response)))
