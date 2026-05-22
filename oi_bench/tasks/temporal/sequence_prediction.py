@@ -89,6 +89,12 @@ class SequencePredictionTask(BenchmarkTask):
         self._full_dur         = n_elements * (element_duration_ms + isi_ms)
         self._n_input          = None
         self._element_neurons  = None
+        self._model            = None
+
+        self.record_diagnostics          = False
+        self._diag_DE_weight             = []
+        self._diag_D_spikes_in_E_window  = []
+        self._diag_E_spikes              = []
 
     @property
     def name(self) -> str:
@@ -115,6 +121,7 @@ class SequencePredictionTask(BenchmarkTask):
         return trial_id < self._n_learning
 
     def setup(self, model: OIModel) -> None:
+        self._model    = model
         self._n_input  = model.n_input
         self._n_output = model.n_output
         self._dt       = model.dt
@@ -158,6 +165,35 @@ class SequencePredictionTask(BenchmarkTask):
             ))
         return stimuli
 
+    def _record_learning_diagnostics(self, metadata: dict | None) -> None:
+        """Record D→E weight, D-bridge spikes, and E-window spikes after a learning trial."""
+        D_idx = self._truncate_at + 1   # element index for D
+        E_idx = self._truncate_at + 2   # element index for E
+
+        # Mean feedforward weight from D-input neurons to output
+        D_neurons = self._element_neurons[D_idx]
+        W = np.array(self._model.synapse.W.value)
+        self._diag_DE_weight.append(float(np.mean(W[D_neurons, :])))
+
+        spike_ts = (metadata.get('spike_counts_timeseries')
+                    if metadata is not None else None)
+        if spike_ts is not None and len(spike_ts) > 0:
+            # D fires at [D_onset, D_offset); 50ms after D fires = [D_offset, D_offset+50ms]
+            d_offset_step = int(
+                (D_idx * (self._element_dur + self._isi) + self._element_dur) / self._dt)
+            bridge_end_step = d_offset_step + int(50.0 / self._dt)
+            e_onset_step  = int(E_idx * (self._element_dur + self._isi) / self._dt)
+            e_offset_step = int(
+                (E_idx * (self._element_dur + self._isi) + self._element_dur) / self._dt)
+            n = len(spike_ts)
+            self._diag_D_spikes_in_E_window.append(
+                float(np.sum(spike_ts[min(d_offset_step, n) : min(bridge_end_step, n)])))
+            self._diag_E_spikes.append(
+                float(np.sum(spike_ts[min(e_onset_step, n) : min(e_offset_step, n)])))
+        else:
+            self._diag_D_spikes_in_E_window.append(0.0)
+            self._diag_E_spikes.append(0.0)
+
     def compute_score(
         self,
         response,
@@ -168,6 +204,10 @@ class SequencePredictionTask(BenchmarkTask):
         is_test = trial_id >= self._n_learning
 
         if not is_test:
+            if (self.record_diagnostics
+                    and self._model is not None
+                    and self._element_neurons is not None):
+                self._record_learning_diagnostics(metadata)
             return {'accuracy': 1.0, 'timing_precision': 1.0,
                     'd_correct': 1.0, 'e_correct': 1.0}
 
