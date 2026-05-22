@@ -15,7 +15,7 @@ OI-Bench is the first standardized, reproducible benchmark suite for quantifying
 
 **Key features:**
 - **Substrate-agnostic adapter interface** — any OI model (SNN, reservoir, RNN) implements `OIModel` and plugs in with zero modification to tasks or metrics
-- **Reference model** — CAdEx neurons with fractional membrane capacitance (Lundstrom 2008), triplet STDP (Pfister & Gerstner 2006), and homeostatic plasticity (Turrigiano 1998)
+- **Reference model** — CAdEx neurons with power-law motivated effective time constant (Lundstrom et al. 2008, Nature Neuroscience 11:1335), triplet STDP (Pfister & Gerstner 2006), and homeostatic plasticity (Turrigiano 1998)
 - **6 benchmark tasks** across 3 learning axes: associative, temporal, working memory
 - **Principled metrics** — Learning Index, weight entropy, transfer entropy, homeostatic efficacy
 
@@ -83,7 +83,7 @@ Any model implementing `OIModel` can be evaluated against all benchmark tasks.
 
 | Model | Description | Learning |
 |---|---|---|
-| `CAdExNetwork` | Reference: CAdEx + fractional membrane + triplet STDP | STDP + Homeostasis |
+| `CAdExNetwork` | Reference: CAdEx + power-law effective time constant (Lundstrom 2008) + triplet STDP | STDP + Homeostasis |
 | `LIFNetwork` | Ablation: standard LIF + triplet STDP | STDP + Homeostasis |
 | `LiquidStateMachine` | Ablation: fixed spiking reservoir | Readout only |
 

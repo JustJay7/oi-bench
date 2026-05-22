@@ -1,11 +1,11 @@
 """
-CAdExFractalNeuron — CAdEx with Fractional Membrane Time Constant
+CAdExFractalNeuron — CAdEx with Power-Law Motivated Effective Time Constant
 
-Implements the fractional membrane formulation from Lundstrom et al. (2008),
-Nature Neuroscience 11:1335-1342, equation 2.
+Implements the power-law motivated effective time constant (Lundstrom et al.
+2008, Nature Neuroscience 11:1335-1342, equation 2).
 
-The biological claim: neural membrane capacitance behaves as a fractional-order
-element. This modifies the effective membrane time constant as:
+The biological claim: neural membrane dynamics exhibit power-law adaptation,
+motivating a rescaled effective membrane time constant as:
 
   τ_eff = τ_0^(1/α)   where τ_0 = C_m / g_L
 
@@ -38,7 +38,7 @@ from oi_bench.models.cadex.neuron import CAdExNeuron
 
 class CAdExFractalNeuron(CAdExNeuron):
     """
-    CAdEx neuron with fractional-order membrane time constant.
+    CAdEx neuron with power-law motivated effective time constant (Lundstrom et al. 2008, Nature Neuroscience).
 
     The effective capacitance is derived from Lundstrom et al. (2008) eq. 2:
       τ_eff = (C_m/g_L)^(1/α)
@@ -50,7 +50,7 @@ class CAdExFractalNeuron(CAdExNeuron):
     Parameters
     ----------
     alpha : float
-        Fractional order ∈ (0, 1]. Default 0.85.
+        Power-law exponent α ∈ (0, 1]. Default 0.85.
     """
 
     def __init__(
@@ -64,7 +64,7 @@ class CAdExFractalNeuron(CAdExNeuron):
 
         # Lundstrom (2008) eq. 2: τ_eff = τ_0^(1/α), C_eff = g_L * τ_eff
         tau_0        = self.C_m / self.g_L          # ms, standard time constant
-        self.tau_eff = tau_0 ** (1.0 / alpha)       # ms, fractional time constant
+        self.tau_eff = tau_0 ** (1.0 / alpha)       # ms, power-law effective time constant
         self.C_eff   = self.g_L * self.tau_eff       # pF, effective capacitance
 
         print(f"  CAdExFractalNeuron α={alpha}: "
@@ -73,7 +73,7 @@ class CAdExFractalNeuron(CAdExNeuron):
 
     def dV_dt(self, V, w, I_ext):
         """
-        Fractional membrane equation — C_m replaced by C_eff.
+        Power-law membrane equation — C_m replaced by C_eff (Lundstrom et al. 2008).
         Lower α → larger C_eff → slower dV/dt → more adaptation.
         """
         I_leak = self.g_L * (V - self.E_L)
