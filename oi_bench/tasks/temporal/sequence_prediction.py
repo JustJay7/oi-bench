@@ -97,6 +97,8 @@ class SequencePredictionTask(BenchmarkTask):
         self._diag_E_spikes              = []
         self._diag_E_spikes_test         = []
         self._diag_DE_weight_init        = None   # captured at setup() before any STDP
+        # Per-element FF weight time-series: A,B,C,D → output mean weight per trial.
+        self._diag_elem_ff_weights       = {'A': [], 'B': [], 'C': [], 'D': []}
 
     @property
     def name(self) -> str:
@@ -146,8 +148,8 @@ class SequencePredictionTask(BenchmarkTask):
         print(f"  Learning: {self._n_learning} | Test: {self._n_test} trials")
 
         if self.record_diagnostics and hasattr(model, 'synapse'):
-            D_neurons = self._element_neurons[self._truncate_at + 1]
             W0 = np.array(model.synapse.W.value)
+            D_neurons = self._element_neurons[self._truncate_at + 1]
             self._diag_DE_weight_init = float(np.mean(W0[D_neurons, :]))
 
     def generate_trial(self, trial_id: int, rng_key) -> List[Stimulus]:
@@ -200,6 +202,11 @@ class SequencePredictionTask(BenchmarkTask):
         else:
             self._diag_D_spikes_in_E_window.append(0.0)
             self._diag_E_spikes.append(0.0)
+
+        # Per-element FF weight time-series. W already read above; reuse it.
+        for i, name in enumerate('ABCD'):
+            self._diag_elem_ff_weights[name].append(
+                float(np.mean(W[self._element_neurons[i], :])))
 
     def _record_test_diagnostics(self, metadata: dict | None) -> None:
         """Record E-window output spikes on test trials (A→B→C only, no E input)."""
