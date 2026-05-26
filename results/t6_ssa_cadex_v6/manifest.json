@@ -1,0 +1,15 @@
+{
+  "run_id": "t6_ssa_cadex_v6",
+  "timestamp": "2026-05-26T00:39:00.626889",
+  "git_hash": "1068635",
+  "runs": [
+    {
+      "key": "cadex__T6_NBack",
+      "model_name": "cadex",
+      "task_name": "T6_NBack",
+      "learning_index": 0.0,
+      "n_trials": 450,
+      "total_wall_time_min": 36.99637332757314
+    }
+  ]
+}

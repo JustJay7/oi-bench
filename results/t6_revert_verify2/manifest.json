@@ -1,0 +1,15 @@
+{
+  "run_id": "t6_revert_verify2",
+  "timestamp": "2026-05-26T12:30:51.897654",
+  "git_hash": "1068635",
+  "runs": [
+    {
+      "key": "cadex__T6_NBack",
+      "model_name": "cadex",
+      "task_name": "T6_NBack",
+      "learning_index": 0.7845,
+      "n_trials": 400,
+      "total_wall_time_min": 9.406429743766784
+    }
+  ]
+}

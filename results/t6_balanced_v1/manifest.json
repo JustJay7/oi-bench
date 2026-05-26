@@ -1,0 +1,31 @@
+{
+  "run_id": "t6_balanced_v1",
+  "timestamp": "2026-05-23T00:55:19.149360",
+  "git_hash": "1068635",
+  "runs": [
+    {
+      "key": "cadex__T6_NBack",
+      "model_name": "cadex",
+      "task_name": "T6_NBack",
+      "learning_index": 0.012584877441249129,
+      "n_trials": 400,
+      "total_wall_time_min": 9.540548833211263
+    },
+    {
+      "key": "lif__T6_NBack",
+      "model_name": "lif",
+      "task_name": "T6_NBack",
+      "learning_index": 0.035389965153657464,
+      "n_trials": 400,
+      "total_wall_time_min": 7.870973110198975
+    },
+    {
+      "key": "lsm__T6_NBack",
+      "model_name": "lsm",
+      "task_name": "T6_NBack",
+      "learning_index": 0.00025,
+      "n_trials": 400,
+      "total_wall_time_min": 5.993628338972727
+    }
+  ]
+}

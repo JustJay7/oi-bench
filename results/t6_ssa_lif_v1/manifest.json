@@ -1,0 +1,15 @@
+{
+  "run_id": "t6_ssa_lif_v1",
+  "timestamp": "2026-05-25T12:36:37.703427",
+  "git_hash": "1068635",
+  "runs": [
+    {
+      "key": "lif__T6_NBack",
+      "model_name": "lif",
+      "task_name": "T6_NBack",
+      "learning_index": 0.10666666666666669,
+      "n_trials": 450,
+      "total_wall_time_min": 33.89000434478124
+    }
+  ]
+}

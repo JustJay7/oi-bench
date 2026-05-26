@@ -1,0 +1,2 @@
+model,task,learning_index,convergence_trial,asymptotic_performance,sample_efficiency,wall_time_min
+cadex,T6_NBack,0.1067,37,0.5667,0.4911,36.0

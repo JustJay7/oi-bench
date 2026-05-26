@@ -1,0 +1,15 @@
+{
+  "run_id": "t6_ddms_lsm_v1",
+  "timestamp": "2026-05-23T19:46:13.650861",
+  "git_hash": "1068635",
+  "runs": [
+    {
+      "key": "lsm__T6_NBack",
+      "model_name": "lsm",
+      "task_name": "T6_NBack",
+      "learning_index": 0.020000000000000018,
+      "n_trials": 300,
+      "total_wall_time_min": 22.143619672457376
+    }
+  ]
+}

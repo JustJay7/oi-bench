@@ -1,0 +1,15 @@
+{
+  "run_id": "t6_ssa_lsm_v1",
+  "timestamp": "2026-05-24T19:23:39.090675",
+  "git_hash": "1068635",
+  "runs": [
+    {
+      "key": "lsm__T6_NBack",
+      "model_name": "lsm",
+      "task_name": "T6_NBack",
+      "learning_index": 0.10666666666666669,
+      "n_trials": 450,
+      "total_wall_time_min": 26.932039101918537
+    }
+  ]
+}

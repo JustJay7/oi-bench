@@ -478,6 +478,7 @@ def main():
             if task_name == 'T3':
                 model._reset_state_per_trial = True
 
+
             modulator_fn = None
             if task_name == 'T4':
                 n_t4_trials  = len(task._intervals) * task._n_per_interval
