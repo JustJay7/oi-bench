@@ -1,0 +1,39 @@
+{
+  "run_id": "t2t5_verify_v1",
+  "timestamp": "2026-06-02T21:51:20.166944",
+  "git_hash": "f18658b",
+  "runs": [
+    {
+      "key": "cadex__T2_PatternCompletion",
+      "model_name": "cadex",
+      "task_name": "T2_PatternCompletion",
+      "learning_index": 0.694,
+      "n_trials": 150,
+      "total_wall_time_min": 1.5170644720395405
+    },
+    {
+      "key": "cadex__T5_DelayMatchToSample",
+      "model_name": "cadex",
+      "task_name": "T5_DelayMatchToSample",
+      "learning_index": 0.502,
+      "n_trials": 200,
+      "total_wall_time_min": 7.598873746395111
+    },
+    {
+      "key": "lif__T2_PatternCompletion",
+      "model_name": "lif",
+      "task_name": "T2_PatternCompletion",
+      "learning_index": 0.724,
+      "n_trials": 150,
+      "total_wall_time_min": 1.3318359494209289
+    },
+    {
+      "key": "lif__T5_DelayMatchToSample",
+      "model_name": "lif",
+      "task_name": "T5_DelayMatchToSample",
+      "learning_index": 0.502,
+      "n_trials": 200,
+      "total_wall_time_min": 6.616924317677816
+    }
+  ]
+}
