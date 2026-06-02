@@ -1,0 +1,15 @@
+{
+  "run_id": "t4_cold_start_v1",
+  "timestamp": "2026-05-27T12:53:35.127982",
+  "git_hash": "367cff3",
+  "runs": [
+    {
+      "key": "cadex__T4_IntervalTiming",
+      "model_name": "cadex",
+      "task_name": "T4_IntervalTiming",
+      "learning_index": 0.44888,
+      "n_trials": 150,
+      "total_wall_time_min": 14.407564644018809
+    }
+  ]
+}

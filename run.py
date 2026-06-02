@@ -86,7 +86,7 @@ STDP_CONFIG = {
         # (8.8× A2_plus) → FF weights hit 0.8289 in 10 trials. A3_plus=0 uses
         # pure pair STDP on FF; C→D selectivity comes from rec, not FF.
         'T3': {'A2_plus': 0.001, 'A3_plus': 0.000, 'A2_minus': 0.001},
-        'T4': {'A2_plus': 0.01,  'A3_plus': 0.01,   'A2_minus': 0.001},
+        'T4': {'A2_plus': 0.05,  'A3_plus': 0.05,   'A2_minus': 0.005},
         'T5': {'A2_plus': 0.006, 'A3_plus': 0.009, 'A2_minus': 0.003},
         'T6': {'A2_plus': 0.006, 'A3_plus': 0.009, 'A2_minus': 0.003},
     },
@@ -95,7 +95,7 @@ STDP_CONFIG = {
         'T2': {'A2_plus': 0.004, 'A3_plus': 0.006, 'A2_minus': 0.002},
         # A3_plus=0: same rationale as cadex T3 above.
         'T3': {'A2_plus': 0.001, 'A3_plus': 0.000, 'A2_minus': 0.001},
-        'T4': {'A2_plus': 0.003, 'A3_plus': 0.003,  'A2_minus': 0.005},
+        'T4': {'A2_plus': 0.025, 'A3_plus': 0.025,  'A2_minus': 0.0025},
         'T5': {'A2_plus': 0.001, 'A3_plus': 0.002, 'A2_minus': 0.001},
         'T6': {'A2_plus': 0.001, 'A3_plus': 0.002, 'A2_minus': 0.001},
     },
@@ -111,7 +111,7 @@ STDP_CONFIG = {
 # trace at T_burst, giving near-perfect credit assignment.
 # ------------------------------------------------------------------
 ELIGIBILITY_CONFIG = {
-    'T4': {'enabled': True, 'tau_e': 100.0},
+    'T4': {'enabled': True, 'tau_e': 1200.0},
 }
 
 
@@ -263,7 +263,7 @@ def build_t4_models(seed: int = 0) -> dict:
             alpha=0.85, conn_prob=1.0, dt=0.1,
             I_background=0.0,
             plasticity=True, homeostasis=False,
-            w_init=0.4,
+            w_init=0.8,
             seed=seed,
         ),
         'lif': LIFNetwork(
@@ -271,7 +271,7 @@ def build_t4_models(seed: int = 0) -> dict:
             conn_prob=1.0, dt=0.1,
             I_background=0.0,
             plasticity=True, homeostasis=False,
-            w_init=0.05,
+            w_init=0.8,
             seed=seed,
         ),
         'lsm': LiquidStateMachine(

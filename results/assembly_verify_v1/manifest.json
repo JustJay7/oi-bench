@@ -1,0 +1,39 @@
+{
+  "run_id": "assembly_verify_v1",
+  "timestamp": "2026-05-26T14:39:07.066881",
+  "git_hash": "367cff3",
+  "runs": [
+    {
+      "key": "cadex__T1_ClassicalConditioning",
+      "model_name": "cadex",
+      "task_name": "T1_ClassicalConditioning",
+      "learning_index": 0.9864999999999999,
+      "n_trials": 200,
+      "total_wall_time_min": 3.675648852189382
+    },
+    {
+      "key": "cadex__T4_IntervalTiming",
+      "model_name": "cadex",
+      "task_name": "T4_IntervalTiming",
+      "learning_index": 0.44888,
+      "n_trials": 150,
+      "total_wall_time_min": 13.830111626784007
+    },
+    {
+      "key": "lif__T1_ClassicalConditioning",
+      "model_name": "lif",
+      "task_name": "T1_ClassicalConditioning",
+      "learning_index": 0.9864999999999999,
+      "n_trials": 200,
+      "total_wall_time_min": 3.2415167172749837
+    },
+    {
+      "key": "lif__T4_IntervalTiming",
+      "model_name": "lif",
+      "task_name": "T4_IntervalTiming",
+      "learning_index": 0.7903466666666668,
+      "n_trials": 150,
+      "total_wall_time_min": 10.586435500780741
+    }
+  ]
+}

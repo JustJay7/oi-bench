@@ -90,19 +90,48 @@ class LIFNetwork(OIModel):
         homeostasis: bool   = True,
         w_init: float       = 0.3,
         input_V_peak: float = 20.0,
+        n_assemblies: int   = 1,
         seed: int           = 0,
     ):
         np.random.seed(seed)
-        self._n_input  = n_input
-        self._n_output = n_output
-        self._dt       = dt
-        self._I_bg     = I_background
+        self._n_input      = n_input
+        self._n_output     = n_output
+        self._dt           = dt
+        self._I_bg         = I_background
+        self._n_assemblies = n_assemblies
 
         self.input_pop  = LIFNeuron(size=n_input,  dt=dt, V_peak=input_V_peak)
         self.output_pop = LIFNeuron(size=n_output, dt=dt)
 
-        conn = (np.ones((n_input, n_output), dtype=bool)
-                if conn_prob >= 1.0 else {'prob': conn_prob})
+        # Block-diagonal FF mask: assembly k inputs → assembly k outputs only.
+        # With n_assemblies=1, this reduces to the standard all-to-all / conn_prob mask.
+        if n_assemblies > 1:
+            inp_per = n_input  // n_assemblies
+            out_per = n_output // n_assemblies
+            assembly_input_idx = [
+                np.arange(k * inp_per,
+                          (k + 1) * inp_per if k < n_assemblies - 1 else n_input,
+                          dtype=np.int32)
+                for k in range(n_assemblies)
+            ]
+            assembly_output_idx = [
+                np.arange(k * out_per,
+                          (k + 1) * out_per if k < n_assemblies - 1 else n_output,
+                          dtype=np.int32)
+                for k in range(n_assemblies)
+            ]
+            conn = np.zeros((n_input, n_output), dtype=bool)
+            for k in range(n_assemblies):
+                ii = assembly_input_idx[k]
+                oi = assembly_output_idx[k]
+                if conn_prob >= 1.0:
+                    conn[np.ix_(ii, oi)] = True
+                else:
+                    conn[np.ix_(ii, oi)] = np.random.rand(len(ii), len(oi)) < conn_prob
+        else:
+            conn = (np.ones((n_input, n_output), dtype=bool)
+                    if conn_prob >= 1.0 else {'prob': conn_prob})
+
         self.synapse = TripletSTDPSynapse(
             pre=self.input_pop, post=self.output_pop,
             conn=conn, w_init=w_init, g_max=3.0, tau_syn=15.0,
