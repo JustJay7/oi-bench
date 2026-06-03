@@ -1,0 +1,55 @@
+{
+  "run_id": "full_benchmark_lsm_v1",
+  "timestamp": "2026-06-03T22:44:16.576351",
+  "git_hash": "05019e5",
+  "runs": [
+    {
+      "key": "lsm__T1_ClassicalConditioning",
+      "model_name": "lsm",
+      "task_name": "T1_ClassicalConditioning",
+      "learning_index": 0.4365,
+      "n_trials": 200,
+      "total_wall_time_min": 2.45483896334966
+    },
+    {
+      "key": "lsm__T2_PatternCompletion",
+      "model_name": "lsm",
+      "task_name": "T2_PatternCompletion",
+      "learning_index": 0.19,
+      "n_trials": 150,
+      "total_wall_time_min": 1.0039431651433308
+    },
+    {
+      "key": "lsm__T3_SequencePrediction",
+      "model_name": "lsm",
+      "task_name": "T3_SequencePrediction",
+      "learning_index": 0.0,
+      "n_trials": 300,
+      "total_wall_time_min": 2.4535348216692605
+    },
+    {
+      "key": "lsm__T4_IntervalTiming",
+      "model_name": "lsm",
+      "task_name": "T4_IntervalTiming",
+      "learning_index": 0.53758,
+      "n_trials": 150,
+      "total_wall_time_min": 6.188148132960001
+    },
+    {
+      "key": "lsm__T5_DelayMatchToSample",
+      "model_name": "lsm",
+      "task_name": "T5_DelayMatchToSample",
+      "learning_index": 0.502,
+      "n_trials": 200,
+      "total_wall_time_min": 4.93009238243103
+    },
+    {
+      "key": "lsm__T6_NBack",
+      "model_name": "lsm",
+      "task_name": "T6_NBack",
+      "learning_index": 0.784,
+      "n_trials": 400,
+      "total_wall_time_min": 6.033549602826437
+    }
+  ]
+}

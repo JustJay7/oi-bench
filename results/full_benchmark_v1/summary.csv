@@ -1,0 +1,7 @@
+model,task,learning_index,convergence_trial,asymptotic_performance,sample_efficiency,wall_time_min
+cadex,T1_ClassicalConditioning,0.9865,9,1.0000,1.0000,3.6
+cadex,T2_PatternCompletion,0.6940,9,0.6000,0.8800,1.5
+cadex,T3_SequencePrediction,0.9730,9,1.0000,1.0000,3.8
+cadex,T4_IntervalTiming,0.8542,11,0.8550,0.7437,13.9
+cadex,T5_DelayMatchToSample,0.6370,37,0.5750,0.5250,7.7
+cadex,T6_NBack,0.7318,16,0.5875,0.7500,9.5
