@@ -1,0 +1,15 @@
+{
+  "run_id": "t6_assembly_diag_lif_v1",
+  "timestamp": "2026-06-03T00:34:43.351210",
+  "git_hash": "16cf816",
+  "runs": [
+    {
+      "key": "lif__T6_NBack",
+      "model_name": "lif",
+      "task_name": "T6_NBack",
+      "learning_index": 0.71575,
+      "n_trials": 400,
+      "total_wall_time_min": 8.013933483759562
+    }
+  ]
+}

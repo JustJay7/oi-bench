@@ -1,0 +1,31 @@
+{
+  "run_id": "t6_final_v1",
+  "timestamp": "2026-06-03T20:09:34.280393",
+  "git_hash": "16cf816",
+  "runs": [
+    {
+      "key": "cadex__T6_NBack",
+      "model_name": "cadex",
+      "task_name": "T6_NBack",
+      "learning_index": 0.784,
+      "n_trials": 400,
+      "total_wall_time_min": 9.485196201006572
+    },
+    {
+      "key": "lif__T6_NBack",
+      "model_name": "lif",
+      "task_name": "T6_NBack",
+      "learning_index": 0.6839999999999999,
+      "n_trials": 400,
+      "total_wall_time_min": 7.934826978047689
+    },
+    {
+      "key": "lsm__T6_NBack",
+      "model_name": "lsm",
+      "task_name": "T6_NBack",
+      "learning_index": 0.784,
+      "n_trials": 400,
+      "total_wall_time_min": 5.998384408156077
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+model,task,learning_index,convergence_trial,asymptotic_performance,sample_efficiency,wall_time_min
+lsm,T6_NBack,0.7840,16,0.7250,0.6675,6.0

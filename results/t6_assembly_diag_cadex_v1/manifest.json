@@ -1,0 +1,15 @@
+{
+  "run_id": "t6_assembly_diag_cadex_v1",
+  "timestamp": "2026-06-03T00:06:28.683370",
+  "git_hash": "16cf816",
+  "runs": [
+    {
+      "key": "cadex__T6_NBack",
+      "model_name": "cadex",
+      "task_name": "T6_NBack",
+      "learning_index": 0.72675,
+      "n_trials": 400,
+      "total_wall_time_min": 9.42931513786316
+    }
+  ]
+}

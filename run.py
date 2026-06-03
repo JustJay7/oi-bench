@@ -475,7 +475,7 @@ def main():
             # Biological basis: ITI in sequence replay experiments is typically
             # 1-5s; tau_w=100ms means adaptation decays to <1% in ~500ms. The
             # reset models this return to resting state.
-            if task_name == 'T3':
+            if task_name in ('T3', 'T6'):
                 model._reset_state_per_trial = True
 
 

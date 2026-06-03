@@ -1,0 +1,15 @@
+{
+  "run_id": "t6_assembly_diag_v1",
+  "timestamp": "2026-06-02T22:42:03.572063",
+  "git_hash": "16cf816",
+  "runs": [
+    {
+      "key": "lsm__T6_NBack",
+      "model_name": "lsm",
+      "task_name": "T6_NBack",
+      "learning_index": 0.784,
+      "n_trials": 400,
+      "total_wall_time_min": 6.002370127042135
+    }
+  ]
+}
