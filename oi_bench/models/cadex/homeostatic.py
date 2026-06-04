@@ -87,10 +87,10 @@ class HomeostaticPlasticity:
         self.w_max        = w_max
         self.enabled      = enabled
 
+        EMA_TRIALS  = 5  # homeostatic time constant: exponential moving average over N trials
         n           = neurons.num
         self.r_mean = np.full(n, r_target, dtype=np.float32)
-        # EMA decay — τ = 5 trials (spec Section 4.4)
-        self.alpha  = 1.0 - np.exp(-1.0 / 5.0)
+        self.alpha  = 1.0 - np.exp(-1.0 / EMA_TRIALS)
 
         # V_T bounds derived from neuron parameters
         E_L        = getattr(neurons, 'E_L',    -70.0)

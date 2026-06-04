@@ -94,5 +94,9 @@ class BenchmarkTask(ABC):
         norm_convergence  = 1.0 - convergence_trial / n
         sample_efficiency = sum(all_scores) / n
 
+        # NOTE: chance-level performance maps to LI ≈ 0.35, not 0.0.
+        # A model that never learns (accuracy=0.5) scores LI > 0 due to
+        # the convergence and sample_efficiency terms. When interpreting
+        # results, treat LI < 0.4 as near-chance performance.
         li = w1*norm_accuracy + w2*norm_convergence + w3*sample_efficiency
         return float(max(0.0, min(1.0, li)))
