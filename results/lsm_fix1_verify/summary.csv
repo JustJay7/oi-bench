@@ -1,0 +1,4 @@
+model,task,learning_index,convergence_trial,asymptotic_performance,sample_efficiency,wall_time_min
+lsm,T1_ClassicalConditioning,0.4365,9,0.0000,0.7500,2.3
+lsm,T2_PatternCompletion,0.1900,9,0.2000,0.7333,0.9
+lsm,T3_SequencePrediction,0.0000,9,0.0000,0.6667,2.2

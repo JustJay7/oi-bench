@@ -53,13 +53,14 @@ class LSMSynapse(bp.Projection):
     """
 
     def __init__(self, pre, post, W_in, W_rec, W_out,
-                 tau_syn=15.0, g_max=3.0, dt=0.1):
+                 tau_syn=15.0, g_max=3.0, dt=0.1, I_background=150.0):
         super().__init__()
         self.pre     = pre
         self.post    = post
         self.tau_syn = tau_syn
         self.g_max   = g_max
         self.dt      = dt
+        self._I_bg   = I_background
 
         n_in  = pre.num
         n_res = W_in.shape[1]
@@ -113,7 +114,7 @@ class LSMSynapse(bp.Projection):
         V_res     = self.reservoir.V.value
         I_syn_in  = -self.g_max * jnp.sum(g_in_new,  axis=0) * (V_res - 0.0)
         I_syn_rec = -self.g_max * jnp.sum(g_rec_new, axis=0) * (V_res - 0.0)
-        I_total   = bm.full(self.reservoir.num, 150.0) + I_syn_in + I_syn_rec
+        I_total   = bm.full(self.reservoir.num, self._I_bg) + I_syn_in + I_syn_rec
 
         self.reservoir.update(x=I_total)
         S_res_new = self.reservoir.spike.value.astype(bm.float32)
@@ -185,7 +186,7 @@ class LiquidStateMachine(OIModel):
         self.synapse = LSMSynapse(
             pre=self.input_pop, post=self.output_pop,
             W_in=W_in, W_rec=W_rec, W_out=W_out,
-            tau_syn=15.0, g_max=3.0, dt=dt,
+            tau_syn=15.0, g_max=3.0, dt=dt, I_background=I_background,
         )
 
         # Runner expects rec_synapse; give it a dummy no-op
