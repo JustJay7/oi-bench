@@ -164,7 +164,6 @@ class TripletSTDPSynapse(bp.Projection):
         dW_ltd     = self.A2_minus * jnp.outer(S_pre, o1)
         # Soft weight bounds (van Rossum et al. 2000; Gütig et al. 2003):
         # LTP scales with (w_max - W), LTD scales with (W - w_min).
-        # Only applied for LIF — CAdEx uses hard bounds (soft_bounds=False).
         if self.soft_bounds:
             W_cur  = self.W.value
             dW_ltp = dW_ltp * (self.w_max - W_cur)
