@@ -40,7 +40,11 @@ class CAdExFractalNeuron(CAdExNeuron):
     """
     CAdEx neuron with power-law motivated effective time constant (Lundstrom et al. 2008, Nature Neuroscience).
 
-    The effective capacitance is derived from Lundstrom et al. (2008) eq. 2:
+    The effective capacitance uses τ_eff = τ_0^(1/α), motivated by Lundstrom
+    et al. (2008) eq. 2, which shows neural transfer functions exhibit power-law
+    frequency scaling f(ω) ∝ ω^α; the specific τ_eff = τ_0^(1/α) rescaling is
+    a modeling choice that produces slower membrane dynamics for smaller α,
+    consistent with the biological observation:
       τ_eff = (C_m/g_L)^(1/α)
       C_eff = g_L · τ_eff
 
@@ -62,7 +66,9 @@ class CAdExFractalNeuron(CAdExNeuron):
         super().__init__(size=size, **kwargs)
         self.alpha = alpha
 
-        # Lundstrom (2008) eq. 2: τ_eff = τ_0^(1/α), C_eff = g_L * τ_eff
+        # Motivated by Lundstrom (2008) eq. 2 (power-law f(ω) ∝ ω^α);
+        # τ_eff = τ_0^(1/α) is a modeling choice, not directly eq. 2.
+        # C_eff = g_L * τ_eff
         tau_0        = self.C_m / self.g_L          # ms, standard time constant
         self.tau_eff = tau_0 ** (1.0 / alpha)       # ms, power-law effective time constant
         self.C_eff   = self.g_L * self.tau_eff       # pF, effective capacitance
