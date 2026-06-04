@@ -202,6 +202,10 @@ class TripletSTDPSynapse(bp.Projection):
         dW_ltd     = self.A2_minus * jnp.outer(S_pre, o1)
         dW_stdp    = (dW_ltp - dW_ltd) * self.mask_jax
 
+        # C_eff > C_m for CAdEx (α<1) means fewer spikes → weaker eligibility trace.
+        # This scale normalises STDP amplitude so T4 eligibility accumulates at a
+        # comparable rate regardless of membrane capacitance. For LIF (no C_eff),
+        # getattr fallback gives scale=1.0 (no effect).
         cadex_scale = getattr(self.post, 'C_m', 200.0) / getattr(self.post, 'C_eff', 200.0)
         dW_stdp = dW_stdp * cadex_scale
 

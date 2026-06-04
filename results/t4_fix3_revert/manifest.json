@@ -1,0 +1,15 @@
+{
+  "run_id": "t4_fix3_revert",
+  "timestamp": "2026-06-04T22:56:00.765790",
+  "git_hash": "6fa5bb0",
+  "runs": [
+    {
+      "key": "cadex__T4_IntervalTiming",
+      "model_name": "cadex",
+      "task_name": "T4_IntervalTiming",
+      "learning_index": 0.85424,
+      "n_trials": 150,
+      "total_wall_time_min": 13.676272408167522
+    }
+  ]
+}
