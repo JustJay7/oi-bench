@@ -1,0 +1,15 @@
+{
+  "run_id": "t4_matched_lif_v1",
+  "timestamp": "2026-06-06T01:31:33.828603",
+  "git_hash": "a92c007",
+  "runs": [
+    {
+      "key": "lif__T4_IntervalTiming",
+      "model_name": "lif",
+      "task_name": "T4_IntervalTiming",
+      "learning_index": 0.49416666666666664,
+      "n_trials": 150,
+      "total_wall_time_min": 11.077288802464803
+    }
+  ]
+}

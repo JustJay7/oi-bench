@@ -439,24 +439,6 @@ class BenchmarkRunner:
                     model.post_trial(trial_id, [], modulator=modulator,
                                      e_ff=e_ff_for_da, e_rec=e_rec_final)
 
-                    # Bootstrap: on wrong trials, apply unconditional LTP
-                    # to the target group using its burst-time trace snapshot.
-                    if (modulator < 0
-                            and hasattr(task, 'eligibility_for_target')
-                            and hasattr(model, 'synapse')):
-                        target_ms = float(scores.get(
-                            'target_ms',
-                            scores.get('reproduced_ms', task.trial_duration_ms)))
-                        if (e_snaps is not None
-                                and hasattr(task, '_group_times_ms')):
-                            k_target = int(np.argmin(
-                                np.abs(task._group_times_ms - target_ms)))
-                            e_for_bootstrap = e_snaps[k_target]
-                        else:
-                            e_for_bootstrap = e_ff_final
-                        e_target = task.eligibility_for_target(
-                            e_for_bootstrap, target_ms, tau_e)
-                        model.synapse.apply_neuromodulation(0.5, e=e_target)
                 else:
                     model.post_trial(trial_id, [], modulator=modulator)
 
