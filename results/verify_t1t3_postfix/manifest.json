@@ -1,0 +1,39 @@
+{
+  "run_id": "verify_t1t3_postfix",
+  "timestamp": "2026-06-06T02:14:39.210603",
+  "git_hash": "63836fd",
+  "runs": [
+    {
+      "key": "cadex__T1_ClassicalConditioning",
+      "model_name": "cadex",
+      "task_name": "T1_ClassicalConditioning",
+      "learning_index": 0.9864999999999999,
+      "n_trials": 200,
+      "total_wall_time_min": 3.8007338285446166
+    },
+    {
+      "key": "cadex__T3_SequencePrediction",
+      "model_name": "cadex",
+      "task_name": "T3_SequencePrediction",
+      "learning_index": 0.9730000000000001,
+      "n_trials": 300,
+      "total_wall_time_min": 3.644619115193685
+    },
+    {
+      "key": "lif__T1_ClassicalConditioning",
+      "model_name": "lif",
+      "task_name": "T1_ClassicalConditioning",
+      "learning_index": 0.9864999999999999,
+      "n_trials": 200,
+      "total_wall_time_min": 3.176845574378967
+    },
+    {
+      "key": "lif__T3_SequencePrediction",
+      "model_name": "lif",
+      "task_name": "T3_SequencePrediction",
+      "learning_index": 0.0,
+      "n_trials": 300,
+      "total_wall_time_min": 3.2232452313105266
+    }
+  ]
+}

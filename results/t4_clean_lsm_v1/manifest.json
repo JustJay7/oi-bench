@@ -1,0 +1,15 @@
+{
+  "run_id": "t4_clean_lsm_v1",
+  "timestamp": "2026-06-06T01:48:21.552243",
+  "git_hash": "63836fd",
+  "runs": [
+    {
+      "key": "lsm__T4_IntervalTiming",
+      "model_name": "lsm",
+      "task_name": "T4_IntervalTiming",
+      "learning_index": 0.53758,
+      "n_trials": 150,
+      "total_wall_time_min": 6.8061668833096824
+    }
+  ]
+}
