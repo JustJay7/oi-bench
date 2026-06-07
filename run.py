@@ -49,12 +49,12 @@ from oi_bench.models.cadex.network import CAdExNetwork
 from oi_bench.models.baselines.lif_network import LIFNetwork
 from oi_bench.models.baselines.reservoir import LiquidStateMachine
 
-from oi_bench.tasks.associative.classical_conditioning import ClassicalConditioningTask
+from oi_bench.tasks.associative.stimulus_selectivity import StimulusSelectivityTask
 from oi_bench.tasks.associative.pattern_completion import PatternCompletionTask
 from oi_bench.tasks.temporal.sequence_prediction import SequencePredictionTask
 from oi_bench.tasks.temporal.interval_timing import IntervalTimingTask
-from oi_bench.tasks.working_memory.delay_match import DelayMatchTask
-from oi_bench.tasks.working_memory.n_back import NBackTask
+from oi_bench.tasks.associative.oddball_detection import OddballDetectionTask
+from oi_bench.tasks.working_memory.n_back import ChangeDetectionTask
 
 from oi_bench.harness.runner import BenchmarkRunner
 from oi_bench.harness.logger import BenchmarkLogger
@@ -64,12 +64,12 @@ from oi_bench.harness.logger import BenchmarkLogger
 # Per-task homeostasis calibration
 # ------------------------------------------------------------------
 HOMEO_CONFIG = {
-    'T1': {'r_target': 110.0, 'trial_dur_ms':  400.0, 'enabled': True},
+    'T1': {'r_target':  50.0, 'trial_dur_ms':  300.0, 'enabled': True},
     'T2': {'r_target': 200.0, 'trial_dur_ms':  200.0, 'enabled': True},
     'T3': {'r_target':  25.0, 'trial_dur_ms':  250.0, 'enabled': False},
     'T4': {'r_target':   5.0, 'trial_dur_ms': 1220.0, 'enabled': False},
-    'T5': {'r_target':  50.0, 'trial_dur_ms':  800.0, 'enabled': True},
-    'T6': {'r_target':  50.0, 'trial_dur_ms':  500.0, 'enabled': True},
+    'T5': {'r_target':  30.0, 'trial_dur_ms': 2500.0, 'enabled': True},
+    'T6': {'r_target':  30.0, 'trial_dur_ms': 2500.0, 'enabled': True},
 }
 
 # ------------------------------------------------------------------
@@ -287,24 +287,23 @@ def build_t4_models(seed: int = 0) -> dict:
 def build_tasks(smoke: bool = False) -> dict:
     if smoke:
         return {
-            'T1': ClassicalConditioningTask(
-                n_trials=10, n_conditioning_trials=8),
+            'T1': StimulusSelectivityTask(n_learning_trials=20, n_test_trials=10),
             'T2': PatternCompletionTask(
                 n_patterns=3, n_learning_reps=5),
             'T3': SequencePredictionTask(
                 n_learning_trials=10, n_test_trials=5),
             'T4': IntervalTimingTask(n_trials_per_interval=5),
-            'T5': DelayMatchTask(n_trials=10),
-            'T6': NBackTask(trials_per_block=10),
+            'T5': OddballDetectionTask(n_blocks=4),
+            'T6': ChangeDetectionTask(n_blocks=8),
         }
     else:
         return {
-            'T1': ClassicalConditioningTask(),
+            'T1': StimulusSelectivityTask(),
             'T2': PatternCompletionTask(n_patterns=5),
             'T3': SequencePredictionTask(),
             'T4': IntervalTimingTask(),
-            'T5': DelayMatchTask(),
-            'T6': NBackTask(),
+            'T5': OddballDetectionTask(n_blocks=20),
+            'T6': ChangeDetectionTask(n_blocks=40),
         }
 
 
@@ -324,11 +323,12 @@ def main():
     parser.add_argument('--record_traces', action='store_true')
     args = parser.parse_args()
 
-    all_models    = build_models(seed=args.model_seed)
-    all_t2_models = build_sparse_models(seed=args.model_seed)
-    all_t3_models = build_t3_models(seed=args.model_seed)
-    all_t4_models = build_t4_models(seed=args.model_seed)
-    all_tasks     = build_tasks(smoke=args.smoke)
+    all_models        = build_models(seed=args.model_seed)
+    all_sparse_models = build_sparse_models(seed=args.model_seed)
+    all_t2_models     = build_sparse_models(seed=args.model_seed)
+    all_t3_models     = build_t3_models(seed=args.model_seed)
+    all_t4_models     = build_t4_models(seed=args.model_seed)
+    all_tasks         = build_tasks(smoke=args.smoke)
 
     models_to_run = {k: v for k, v in all_models.items()
                      if args.models is None or k in args.models}
@@ -371,10 +371,8 @@ def main():
             #        weights don't contaminate across tasks
             if task_name == 'T4':
                 model = all_t4_models[model_name]
-            elif task_name == 'T2':
-                model = all_t2_models[model_name]
-            elif task_name == 'T3':
-                model = all_t3_models[model_name]
+            elif task_name in ('T1', 'T2', 'T3'):
+                model = all_sparse_models[model_name]
             else:
                 model = all_models[model_name]
 
@@ -475,7 +473,7 @@ def main():
             # Biological basis: ITI in sequence replay experiments is typically
             # 1-5s; tau_w=100ms means adaptation decays to <1% in ~500ms. The
             # reset models this return to resting state.
-            if task_name in ('T3', 'T6'):
+            if task_name in ('T3', 'T5', 'T6'):
                 model._reset_state_per_trial = True
 
 

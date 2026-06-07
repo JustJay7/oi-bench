@@ -1,0 +1,23 @@
+{
+  "run_id": "t1_trace_v1",
+  "timestamp": "2026-06-06T19:20:50.079544",
+  "git_hash": "5f222f4",
+  "runs": [
+    {
+      "key": "cadex__T1_ClassicalConditioning",
+      "model_name": "cadex",
+      "task_name": "T1_ClassicalConditioning",
+      "learning_index": 0.0,
+      "n_trials": 200,
+      "total_wall_time_min": 3.7617969075838724
+    },
+    {
+      "key": "lif__T1_ClassicalConditioning",
+      "model_name": "lif",
+      "task_name": "T1_ClassicalConditioning",
+      "learning_index": 1.0,
+      "n_trials": 200,
+      "total_wall_time_min": 3.2040441354115803
+    }
+  ]
+}

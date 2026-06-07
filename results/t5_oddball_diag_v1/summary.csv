@@ -1,0 +1,2 @@
+model,task,learning_index,convergence_trial,asymptotic_performance,sample_efficiency,wall_time_min
+cadex,T5_OddballDetection,0.5071,20,0.5183,0.5078,4.0

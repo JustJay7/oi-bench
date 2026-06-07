@@ -1,0 +1,15 @@
+{
+  "run_id": "t1_redesign_lif_v1",
+  "timestamp": "2026-06-06T13:30:40.692867",
+  "git_hash": "5f222f4",
+  "runs": [
+    {
+      "key": "lif__T1_ClassicalConditioning",
+      "model_name": "lif",
+      "task_name": "T1_ClassicalConditioning",
+      "learning_index": 0.8,
+      "n_trials": 250,
+      "total_wall_time_min": 4.22921724319458
+    }
+  ]
+}

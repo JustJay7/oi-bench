@@ -1,0 +1,15 @@
+{
+  "run_id": "t5_oddball_diag_v1",
+  "timestamp": "2026-06-07T09:36:12.357057",
+  "git_hash": "5f222f4",
+  "runs": [
+    {
+      "key": "cadex__T5_OddballDetection",
+      "model_name": "cadex",
+      "task_name": "T5_OddballDetection",
+      "learning_index": 0.5070822979095847,
+      "n_trials": 20,
+      "total_wall_time_min": 3.9934097568194074
+    }
+  ]
+}

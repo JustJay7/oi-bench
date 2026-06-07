@@ -1,0 +1,23 @@
+{
+  "run_id": "t1_redesign_v7",
+  "timestamp": "2026-06-06T15:30:01.757742",
+  "git_hash": "5f222f4",
+  "runs": [
+    {
+      "key": "cadex__T1_ClassicalConditioning",
+      "model_name": "cadex",
+      "task_name": "T1_ClassicalConditioning",
+      "learning_index": 0.7,
+      "n_trials": 250,
+      "total_wall_time_min": 4.729226672649384
+    },
+    {
+      "key": "lif__T1_ClassicalConditioning",
+      "model_name": "lif",
+      "task_name": "T1_ClassicalConditioning",
+      "learning_index": 0.7,
+      "n_trials": 250,
+      "total_wall_time_min": 4.040836389859518
+    }
+  ]
+}

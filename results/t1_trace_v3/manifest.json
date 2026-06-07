@@ -1,0 +1,31 @@
+{
+  "run_id": "t1_trace_v3",
+  "timestamp": "2026-06-07T00:59:35.337224",
+  "git_hash": "5f222f4",
+  "runs": [
+    {
+      "key": "cadex__T1_ClassicalConditioning",
+      "model_name": "cadex",
+      "task_name": "T1_ClassicalConditioning",
+      "learning_index": 1.0,
+      "n_trials": 200,
+      "total_wall_time_min": 3.6794535636901857
+    },
+    {
+      "key": "lif__T1_ClassicalConditioning",
+      "model_name": "lif",
+      "task_name": "T1_ClassicalConditioning",
+      "learning_index": 1.0,
+      "n_trials": 200,
+      "total_wall_time_min": 3.241509974002838
+    },
+    {
+      "key": "lsm__T1_ClassicalConditioning",
+      "model_name": "lsm",
+      "task_name": "T1_ClassicalConditioning",
+      "learning_index": 0.0,
+      "n_trials": 200,
+      "total_wall_time_min": 2.4644782582918805
+    }
+  ]
+}

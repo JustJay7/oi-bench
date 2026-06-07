@@ -1,0 +1,3 @@
+model,task,learning_index,convergence_trial,asymptotic_performance,sample_efficiency,wall_time_min
+cadex,T1_ClassicalConditioning,0.0000,9,0.4000,0.5000,3.7
+lif,T1_ClassicalConditioning,1.0000,9,1.0000,1.0000,3.2

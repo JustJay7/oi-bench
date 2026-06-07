@@ -1,81 +1,95 @@
 """
-Task T6 — N-Back (N=1 and N=2)
+Task T6 — 1-Back Change Detection
 
-Benchmark axis: Working Memory
-Biological analog: Continuous online memory updating, PFC-dependent
-(Owen et al. 1999 J Cognitive Neuroscience; Kane & Engle 2002 Psych Sci)
+Benchmark axis: Working Memory / Online Change Detection
+Biological analog: Change blindness, visual short-term memory
+(Rensink 2002 Annual Review; Vogel et al. 2001 Nature)
 
 PROTOCOL
 --------
-Continuous stream of stimuli, one every 500ms.
-Model must signal when the current stimulus matches the one N steps back.
+40 blocks, each 2500ms (50 stimuli × 50ms SOA).
+Each stimulus: 30ms active (400pA) + 20ms silence.
+3 patterns — A (neurons 0-32), B (neurons 33-65), C (neurons 66-98).
+~50% of consecutive pairs are changes (different pattern from previous).
 
-N=1: match if current == previous
-N=2: match if current == two steps ago
+MECHANISM
+---------
+CAdEx: adaptation suppresses the current-pattern response after repeated
+       presentations (SSA). A change = novel pattern = larger response →
+       model can detect changes via elevated firing.
+LIF:   no adaptation → flat response → weak change signal.
 
 SCORING
 -------
-The runner passes response = mean firing rate over the full trial (Hz),
-shape (n_output,). Mean output population rate is used as the detection
-signal — high activity signals a target (N-back match), low activity
-signals a non-target. Threshold at mean of max possible rate.
-
-This is consistent with the population rate code readout in spec Section 12 Q1
-and works without state_trace.
-
-Score per trial:
-  accuracy         : 1.0 if correct, 0.0 otherwise
-  n_back           : 1 or 2
-  is_target        : 1.0 if this is an N-back match trial
-  responded_target : 1.0 if model responded as if target
+For each consecutive stimulus pair within a block:
+  - record output firing rate at the second stimulus
+  - label: change (1) or no-change (0)
+AUC = P(rate_change > rate_nochange) for all pairs across all blocks.
+AUC=0.5 is chance, AUC=1.0 is perfect discrimination.
+Final LI = AUC directly [0,1], chance-corrected.
 
 References:
-  Owen et al. (1999) J Cognitive Neuroscience 11:567-581
-  Kane & Engle (2002) Psychological Science 13:14-17
+  Rensink (2002) Annual Review of Psychology 53:245-277
+  Vogel et al. (2001) Nature 412:751-756
   Spec Section 5, Task T6
 """
 
 from __future__ import annotations
-import jax
-import jax.numpy as jnp
 import numpy as np
 from typing import List
 
 from oi_bench.core.protocol import BenchmarkTask
-from oi_bench.core.types import Stimulus, ModelState
+from oi_bench.core.types import Stimulus
 from oi_bench.core.adapter import OIModel
 
 
-class NBackTask(BenchmarkTask):
+def _auc(pos_rates: list, neg_rates: list) -> float:
+    """Mann-Whitney AUC: P(rate_change > rate_nochange)."""
+    if not pos_rates or not neg_rates:
+        return 0.5
+    count = 0.0
+    n = len(pos_rates) * len(neg_rates)
+    for p in pos_rates:
+        for q in neg_rates:
+            if p > q:
+                count += 1.0
+            elif p == q:
+                count += 0.5
+    return count / n
+
+
+class ChangeDetectionTask(BenchmarkTask):
 
     def __init__(
         self,
-        n_back_values: List[int]    = [1, 2],
-        n_stimuli: int              = 3,
-        trials_per_block: int       = 200,
-        stimulus_duration_ms: float = 200.0,
-        isi_ms: float               = 300.0,
-        stimulus_current: float     = 400.0,
-        stimulus_fraction: float    = 0.3,
-        dt: float                   = 0.1,
-        seed: int                   = 42,
+        n_blocks: int            = 40,
+        n_stimuli_per_block: int = 50,
+        stimulus_duration_ms: float = 30.0,
+        isi_ms: float            = 20.0,
+        change_prob: float       = 0.5,
+        stimulus_current: float  = 400.0,
+        dt: float                = 0.1,
+        seed: int                = 42,
     ):
-        self._n_back_values    = n_back_values
-        self._n_stimuli        = n_stimuli
-        self._trials_per_block = trials_per_block
-        self._stim_dur         = stimulus_duration_ms
-        self._isi              = isi_ms
-        self._stim_current     = stimulus_current
-        self._stim_frac        = stimulus_fraction
-        self._dt               = dt
-        self._seed             = seed
-        self._trial_dur        = stimulus_duration_ms + isi_ms
-        self._n_input          = None
-        self._n_output         = None
-        self._stim_patterns    = None
-        self._trial_info       = None
-        # Running mean output rate — updated trial-by-trial to set detection threshold
-        self._rate_history: List[float] = []
+        self._n_blocks    = n_blocks
+        self._n_per_block = n_stimuli_per_block
+        self._stim_dur_ms = stimulus_duration_ms
+        self._isi_ms      = isi_ms
+        self._soa_ms      = stimulus_duration_ms + isi_ms
+        self._change_prob = change_prob
+        self._stim_current= stimulus_current
+        self._dt          = dt
+        self._seed        = seed
+        self._trial_duration_ms = n_stimuli_per_block * (stimulus_duration_ms + isi_ms)
+
+        self._n_input         = None
+        self._n_output        = None
+        self._pattern_neurons = None  # list of 3 arrays
+        self._block_sequences = None  # list of lists: [pat_id, ...]
+        self._block_labels    = None  # list of lists: [change_bool, ...] (len=n_per_block-1)
+
+        self._all_change_rates   = []
+        self._all_nochange_rates = []
 
     @property
     def name(self) -> str:
@@ -83,56 +97,77 @@ class NBackTask(BenchmarkTask):
 
     @property
     def n_trials(self) -> int:
-        return len(self._n_back_values) * self._trials_per_block
+        return self._n_blocks
 
     @property
     def trial_duration_ms(self) -> float:
-        return self._trial_dur
+        return self._trial_duration_ms
 
     @property
     def learning_axis(self) -> str:
         return "working_memory"
 
+    @property
+    def requires_spike_times(self) -> bool:
+        return True
+
     def setup(self, model: OIModel) -> None:
         self._n_input  = model.n_input
         self._n_output = model.n_output
         self._dt       = model.dt
-        self._rate_history = []
+        self._pattern_neurons = [
+            np.arange(0,  33),   # A
+            np.arange(33, 66),   # B
+            np.arange(66, 99),   # C
+        ]
+
         rng = np.random.RandomState(self._seed)
-        n_active = max(1, int(self._n_input * self._stim_frac))
-        self._stim_patterns = np.zeros(
-            (self._n_stimuli, self._n_input), dtype=np.float32
-        )
-        for i in range(self._n_stimuli):
-            idx = rng.choice(self._n_input, size=n_active, replace=False)
-            self._stim_patterns[i, idx] = 1.0
-        self._trial_info = []
-        for n in self._n_back_values:
-            history = []
-            for _ in range(self._trials_per_block):
-                stim_id   = rng.randint(0, self._n_stimuli)
-                is_target = (len(history) >= n and history[-n] == stim_id)
-                self._trial_info.append((stim_id, n, is_target))
-                history.append(stim_id)
-        n_targets = sum(1 for _, _, t in self._trial_info if t)
-        print(f"  T6 setup: N-back={self._n_back_values} | "
-              f"{self._n_stimuli} stimuli | "
-              f"target rate: {n_targets/len(self._trial_info):.2f}")
+        n_pairs = self._n_per_block - 1
+        n_changes = round(n_pairs * self._change_prob)
+        n_nochanges = n_pairs - n_changes
+
+        self._block_sequences = []
+        self._block_labels    = []
+        for _ in range(self._n_blocks):
+            labels = [True] * n_changes + [False] * n_nochanges
+            rng.shuffle(labels)
+            seq = [rng.randint(0, 3)]
+            for is_change in labels:
+                if is_change:
+                    others = [p for p in range(3) if p != seq[-1]]
+                    seq.append(int(rng.choice(others)))
+                else:
+                    seq.append(seq[-1])
+            self._block_sequences.append(seq)
+            self._block_labels.append(labels)
+
+        self._all_change_rates   = []
+        self._all_nochange_rates = []
+
+        print(f"  T6 setup: {self._n_blocks} blocks × {self._n_per_block} stimuli "
+              f"| ~{n_changes}/{n_pairs} change pairs/block "
+              f"| trial={self._trial_duration_ms:.0f}ms")
 
     def generate_trial(self, trial_id: int, rng_key) -> List[Stimulus]:
-        stim_id, n, _ = self._trial_info[trial_id]
-        n_steps = int(self._trial_dur / self._dt)
+        assert self._n_input is not None, "Call setup() first"
+        block_seq = self._block_sequences[trial_id]
+        n_steps   = int(self._trial_duration_ms / self._dt)
+        soa_steps = int(self._soa_ms / self._dt)
+        act_steps = int(self._stim_dur_ms / self._dt)
+
         stimuli = []
         for step in range(n_steps):
-            t_ms    = step * self._dt
-            current = np.zeros(self._n_input, dtype=np.float32)
-            if t_ms < self._stim_dur:
-                current = self._stim_patterns[stim_id] * self._stim_current
+            stim_idx = step // soa_steps
+            step_in  = step % soa_steps
+            current  = np.zeros(self._n_input, dtype=np.float32)
+            if stim_idx < len(block_seq) and step_in < act_steps:
+                pat_id = block_seq[stim_idx]
+                current[self._pattern_neurons[pat_id]] = self._stim_current
             stimuli.append(Stimulus(
                 current     = current,
                 spike_train = np.zeros(self._n_input, dtype=np.float32),
-                t           = t_ms,
-                label       = int(n),
+                t           = step * self._dt,
+                label       = trial_id,
             ))
         return stimuli
 
@@ -143,30 +178,43 @@ class NBackTask(BenchmarkTask):
         state_trace: list,
         metadata: dict | None = None,
     ) -> dict:
-        """
-        Score using population mean firing rate from response array.
+        labels   = self._block_labels[trial_id]    # n_per_block-1 booleans
+        spike_ts = (metadata.get('spike_counts_timeseries')
+                    if metadata is not None else None)
 
-        response = mean firing rate over full trial, shape (n_output,).
-        Mean population rate is the detection signal.
-        Threshold: adaptive — median of recent trial rates to avoid
-        fixed-threshold failure on untrained networks.
-        """
-        _, n, is_target = self._trial_info[trial_id]
+        change_rates, nochange_rates = [], []
+        soa_steps = int(self._soa_ms / self._dt)
+        act_steps = int(self._stim_dur_ms / self._dt)
 
-        mean_rate = float(np.mean(np.array(response)))
-        self._rate_history.append(mean_rate)
+        if spike_ts is not None and len(spike_ts) > 0:
+            for pair_idx, is_change in enumerate(labels):
+                # Rate at the SECOND stimulus of the pair (index pair_idx+1)
+                stim_idx = pair_idx + 1
+                start = stim_idx * soa_steps
+                end   = min(start + act_steps, len(spike_ts))
+                if end > start:
+                    window_dur_s = (end - start) * self._dt / 1000.0
+                    rate = (float(np.sum(spike_ts[start:end]))
+                            / (self._n_output * window_dur_s))
+                    if is_change:
+                        change_rates.append(rate)
+                    else:
+                        nochange_rates.append(rate)
 
-        # Adaptive threshold: median of all observed rates so far.
-        # On an untrained network this correctly yields ~50% detection
-        # (chance), not systematic 0% or 100%.
-        threshold = float(np.median(self._rate_history))
+        self._all_change_rates.extend(change_rates)
+        self._all_nochange_rates.extend(nochange_rates)
 
-        responded_target = mean_rate > threshold
-        correct          = (responded_target == is_target)
+        block_auc = _auc(change_rates, nochange_rates)
 
         return {
-            'accuracy':         float(correct),
-            'n_back':           n,
-            'is_target':        float(is_target),
-            'responded_target': float(responded_target),
+            'accuracy':       float(block_auc),
+            'change_rate':    float(np.mean(change_rates))   if change_rates   else 0.0,
+            'nochange_rate':  float(np.mean(nochange_rates)) if nochange_rates else 0.0,
         }
+
+    def learning_index(self, trial_results: list) -> float:
+        return float(_auc(self._all_change_rates, self._all_nochange_rates))
+
+
+# Backward-compat alias
+NBackTask = ChangeDetectionTask

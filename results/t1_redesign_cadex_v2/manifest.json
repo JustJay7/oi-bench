@@ -1,0 +1,15 @@
+{
+  "run_id": "t1_redesign_cadex_v2",
+  "timestamp": "2026-06-06T13:21:10.855808",
+  "git_hash": "5f222f4",
+  "runs": [
+    {
+      "key": "cadex__T1_ClassicalConditioning",
+      "model_name": "cadex",
+      "task_name": "T1_ClassicalConditioning",
+      "learning_index": 0.8,
+      "n_trials": 250,
+      "total_wall_time_min": 4.68190614382426
+    }
+  ]
+}

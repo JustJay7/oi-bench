@@ -1,0 +1,2 @@
+model,task,learning_index,convergence_trial,asymptotic_performance,sample_efficiency,wall_time_min
+lsm,T1_ClassicalConditioning,0.2000,164,1.0000,0.4000,3.1

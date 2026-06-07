@@ -1,0 +1,31 @@
+{
+  "run_id": "t5_oddball_v1",
+  "timestamp": "2026-06-07T08:29:50.343100",
+  "git_hash": "5f222f4",
+  "runs": [
+    {
+      "key": "cadex__T5_OddballDetection",
+      "model_name": "cadex",
+      "task_name": "T5_OddballDetection",
+      "learning_index": 0.5070822979095847,
+      "n_trials": 20,
+      "total_wall_time_min": 4.489413531621297
+    },
+    {
+      "key": "lif__T5_OddballDetection",
+      "model_name": "lif",
+      "task_name": "T5_OddballDetection",
+      "learning_index": 0.49875613929534646,
+      "n_trials": 20,
+      "total_wall_time_min": 4.095197494824728
+    },
+    {
+      "key": "lsm__T5_OddballDetection",
+      "model_name": "lsm",
+      "task_name": "T5_OddballDetection",
+      "learning_index": 0.5,
+      "n_trials": 20,
+      "total_wall_time_min": 3.4282851696014403
+    }
+  ]
+}
