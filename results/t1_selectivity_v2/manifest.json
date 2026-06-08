@@ -1,0 +1,31 @@
+{
+  "run_id": "t1_selectivity_v2",
+  "timestamp": "2026-06-08T11:48:22.595252",
+  "git_hash": "75420ba",
+  "runs": [
+    {
+      "key": "cadex__T1_StimulusSelectivity",
+      "model_name": "cadex",
+      "task_name": "T1_StimulusSelectivity",
+      "learning_index": 1.0,
+      "n_trials": 500,
+      "total_wall_time_min": 7.030192295710246
+    },
+    {
+      "key": "lif__T1_StimulusSelectivity",
+      "model_name": "lif",
+      "task_name": "T1_StimulusSelectivity",
+      "learning_index": 1.0,
+      "n_trials": 500,
+      "total_wall_time_min": 6.402701218922933
+    },
+    {
+      "key": "lsm__T1_StimulusSelectivity",
+      "model_name": "lsm",
+      "task_name": "T1_StimulusSelectivity",
+      "learning_index": 0.0,
+      "n_trials": 500,
+      "total_wall_time_min": 4.974043337504069
+    }
+  ]
+}

@@ -287,7 +287,7 @@ def build_t4_models(seed: int = 0) -> dict:
 def build_tasks(smoke: bool = False) -> dict:
     if smoke:
         return {
-            'T1': StimulusSelectivityTask(n_learning_trials=20, n_test_trials=10),
+            'T1': StimulusSelectivityTask(n_learning_trials=40, n_test_trials=10),
             'T2': PatternCompletionTask(
                 n_patterns=3, n_learning_reps=5),
             'T3': SequencePredictionTask(
