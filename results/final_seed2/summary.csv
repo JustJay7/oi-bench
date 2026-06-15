@@ -1,0 +1,10 @@
+model,task,learning_index,convergence_trial,asymptotic_performance,sample_efficiency,wall_time_min
+cadex,T2_PatternCompletion,0.7520,9,0.7000,0.8933,1.5
+cadex,T3_SequencePrediction,0.9730,9,1.0000,1.0000,3.7
+cadex,T4_IntervalTiming,0.5954,107,0.8717,0.3678,13.7
+lif,T2_PatternCompletion,0.5620,9,0.6000,0.8600,1.3
+lif,T3_SequencePrediction,0.0000,9,0.0000,0.6667,3.2
+lif,T4_IntervalTiming,0.4942,9,0.2150,0.5233,11.0
+lsm,T2_PatternCompletion,0.1900,9,0.2000,0.7333,1.0
+lsm,T3_SequencePrediction,0.0000,9,0.0000,0.6667,2.5
+lsm,T4_IntervalTiming,0.5376,71,0.5650,0.4854,6.3

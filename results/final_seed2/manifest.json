@@ -1,0 +1,79 @@
+{
+  "run_id": "final_seed2",
+  "timestamp": "2026-06-15T10:02:39.969717",
+  "git_hash": "5f222f4",
+  "runs": [
+    {
+      "key": "cadex__T2_PatternCompletion",
+      "model_name": "cadex",
+      "task_name": "T2_PatternCompletion",
+      "learning_index": 0.752,
+      "n_trials": 150,
+      "total_wall_time_min": 1.545215654373169
+    },
+    {
+      "key": "cadex__T3_SequencePrediction",
+      "model_name": "cadex",
+      "task_name": "T3_SequencePrediction",
+      "learning_index": 0.9730000000000001,
+      "n_trials": 300,
+      "total_wall_time_min": 3.748309596379598
+    },
+    {
+      "key": "cadex__T4_IntervalTiming",
+      "model_name": "cadex",
+      "task_name": "T4_IntervalTiming",
+      "learning_index": 0.5953999999999999,
+      "n_trials": 150,
+      "total_wall_time_min": 13.736604841550191
+    },
+    {
+      "key": "lif__T2_PatternCompletion",
+      "model_name": "lif",
+      "task_name": "T2_PatternCompletion",
+      "learning_index": 0.5619999999999999,
+      "n_trials": 150,
+      "total_wall_time_min": 1.3395176529884338
+    },
+    {
+      "key": "lif__T3_SequencePrediction",
+      "model_name": "lif",
+      "task_name": "T3_SequencePrediction",
+      "learning_index": 0.0,
+      "n_trials": 300,
+      "total_wall_time_min": 3.246640312671661
+    },
+    {
+      "key": "lif__T4_IntervalTiming",
+      "model_name": "lif",
+      "task_name": "T4_IntervalTiming",
+      "learning_index": 0.49416666666666664,
+      "n_trials": 150,
+      "total_wall_time_min": 11.042841430505117
+    },
+    {
+      "key": "lsm__T2_PatternCompletion",
+      "model_name": "lsm",
+      "task_name": "T2_PatternCompletion",
+      "learning_index": 0.19,
+      "n_trials": 150,
+      "total_wall_time_min": 1.0201820413271585
+    },
+    {
+      "key": "lsm__T3_SequencePrediction",
+      "model_name": "lsm",
+      "task_name": "T3_SequencePrediction",
+      "learning_index": 0.0,
+      "n_trials": 300,
+      "total_wall_time_min": 2.4839649120966594
+    },
+    {
+      "key": "lsm__T4_IntervalTiming",
+      "model_name": "lsm",
+      "task_name": "T4_IntervalTiming",
+      "learning_index": 0.53758,
+      "n_trials": 150,
+      "total_wall_time_min": 6.3340677936871845
+    }
+  ]
+}
