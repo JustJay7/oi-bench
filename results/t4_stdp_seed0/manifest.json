@@ -1,0 +1,31 @@
+{
+  "run_id": "t4_stdp_seed0",
+  "timestamp": "2026-06-15T12:27:26.387355",
+  "git_hash": "7218eb7",
+  "runs": [
+    {
+      "key": "cadex__T4_IntervalTiming",
+      "model_name": "cadex",
+      "task_name": "T4_IntervalTiming",
+      "learning_index": 0.4929333333333333,
+      "n_trials": 150,
+      "total_wall_time_min": 9.70161851644516
+    },
+    {
+      "key": "lif__T4_IntervalTiming",
+      "model_name": "lif",
+      "task_name": "T4_IntervalTiming",
+      "learning_index": 0.49169999999999997,
+      "n_trials": 150,
+      "total_wall_time_min": 8.109232064088186
+    },
+    {
+      "key": "lsm__T4_IntervalTiming",
+      "model_name": "lsm",
+      "task_name": "T4_IntervalTiming",
+      "learning_index": 0.53758,
+      "n_trials": 150,
+      "total_wall_time_min": 7.057614135742187
+    }
+  ]
+}

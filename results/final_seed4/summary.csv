@@ -1,0 +1,4 @@
+model,task,learning_index,convergence_trial,asymptotic_performance,sample_efficiency,wall_time_min
+cadex,T4_IntervalTiming,0.1427,150,0.2150,0.1761,13.8
+lif,T4_IntervalTiming,0.4929,9,0.2150,0.5172,10.9
+lsm,T4_IntervalTiming,0.5376,71,0.5650,0.4854,6.5
